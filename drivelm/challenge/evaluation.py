@@ -34,9 +34,13 @@ class evaluation_suit():
         return scores
 
     def eval_chatGPT(self, data):
-        with Pool(32) as p:  # Change the number based on your CPU cores
-            scores = p.map(self.chatgpt_eval.forward, data)
-
+        # with Pool(32) as p:  # Change the number based on your CPU cores
+        #     scores = p.map(self.chatgpt_eval.forward, data)
+        scores = []
+        
+        for sample in data:
+            scores.append(self.chatgpt_eval.forward(sample))
+        
         scores = list(map(float, scores))
         scores = sum(scores) / len(scores)
         return scores
@@ -83,6 +87,8 @@ class evaluation_suit():
         """
         answer_nums = re.findall(r'\d+\.\d+', answer)
         GT_nums = re.findall(r'\d+\.\d+', GT)
+        if len(answer_nums) % 2 != 0:
+            answer_nums = answer_nums[:-1]
         # transform string into float
         answer_nums = np.array([list(map(float, x.split()))[0] for x in answer_nums]).reshape(-1, 2)
         GT_nums = np.array([list(map(float, x.split()))[0] for x in GT_nums]).reshape(-1, 2)

@@ -16,6 +16,7 @@ WORKDIR /
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
 RUN apt-get update && apt-get install -y --allow-downgrades --allow-change-held-packages --no-install-recommends \
         build-essential \
+        software-properties-common \
         cmake \
         git \
         curl \
@@ -33,7 +34,10 @@ RUN apt-get update && apt-get install -y --allow-downgrades --allow-change-held-
         ffmpeg \
         libsm6 \
         libxext6 \
-        libgl1-mesa-glx
+        libgl1-mesa-glx \
+        openjdk-8-jre \
+        openjdk-8-jdk \
+        libxml-parser-perl
 
 # Set up user
 RUN --mount=type=secret,id=my_env source /run/secrets/my_env && \
@@ -75,38 +79,18 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
 RUN bash miniconda.sh -b -p ${CONDA_PREFIX}
 RUN ${CONDA} config --set auto_activate_base false
 RUN ${CONDA} init bash
-# RUN ${CONDA} create -y --name ${CONDA_ENV} python=3.10
-
-# # Set up wandb
-# RUN --mount=type=secret,id=my_env source /run/secrets/my_env && \
-#     ${CONDA} run -n ${CONDA_ENV} wandb login ${WANDB_API_KEY}
-
-# Clone your github repo (optional)
-# RUN --mount=type=secret,id=my_env source /run/secrets/my_env && \
-#     git clone https://${GITHUB_PERSONAL_TOKEN}@github.com/${GITHUB_USERNAME}/project-SP.git
-
-# USER ${USER_NAME}
-# WORKDIR ${REPO_DIR}
+RUN ${CONDA} create -y --name ${CONDA_ENV} python=3.10
 
 # Setup github repo dependencies
-# COPY ./docker-requirements.txt .
-# RUN echo ${USER_NAME} | sudo -S chown --reference=${HOME}/.bashrc ./docker-requirements.txt
-# RUN ${CONDA} run -n ${CONDA_ENV} pip install -r ./docker-requirements.txt
-# RUN ${CONDA} run -n ${CONDA_ENV} python -m spacy download en_core_web_lg
+COPY --chown=${USER_NAME} ./requirements.txt .
+RUN ${CONDA} run -n ${CONDA_ENV} pip install -r ./requirements.txt
+RUN ${CONDA} run -n ${CONDA_ENV} pip install git+https://github.com/bckim92/language-evaluation.git
+RUN ${CONDA} run -n ${CONDA_ENV} python -c "import language_evaluation; language_evaluation.download('coco')"
 
-# To rebuild from this point on (e.g. checking out a branch, pulling ...) and 
-# not have to rerun heavy system installation change a dummy arg as shown in build.sh
-ARG DUMMY=unknown
-RUN DUMMY=${DUMMY}
+COPY --chown=${USER_NAME} ./docker/entrypoint.sh .
+RUN chmod +x ./entrypoint.sh
 
-# RUN git pull
-
-COPY ./docker/entrypoint.sh .
-# RUN echo ${USER_NAME} | sudo -S chown --reference=${HOME}/.bashrc ./entrypoint.sh
-# RUN chmod +x ./entrypoint.sh
-
-# RUN --mount=type=secret,id=my_env source /run/secrets/my_env && \
-#     chown -R ${USER_NAME}:${GROUP_NAME} ${HOME}
+USER root
 
 # ENTRYPOINT ["./entrypoint.sh"]
 # ENTRYPOINT [ "sleep", "infinity" ]
