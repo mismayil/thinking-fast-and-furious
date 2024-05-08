@@ -611,7 +611,7 @@
             "CAM_BACK_LEFT": "/home/cchang/CS503_VisualIntelligence/data/nuscenes/samples/CAM_BACK_LEFT/n008-2018-09-18-13-10-39-0400__CAM_BACK_LEFT__1537291002297405.jpg",
             "CAM_BACK_RIGHT": "/home/cchang/CS503_VisualIntelligence/data/nuscenes/samples/CAM_BACK_RIGHT/n008-2018-09-18-13-10-39-0400__CAM_BACK_RIGHT__1537291002278113.jpg"
         },
-        "answer": "The ego vehicle can cause a collision with <c1,CAM_BACK,991.7,603.0> if it fails to yield to the pedestrian, fails to stop at a stop sign or red light, or fails to maintain a safe distance from other vehicles on the road.",
+        "answer": "The ego vehicle can cause a collision with <c1,CAM_BACK,991.7,603.0> if it fails to yield to the pedestrian crossing the road, fails to stop at a stop sign or red light, or fails to maintain a safe distance from other vehicles on the road.",
         "user_message": [
             {
                 "role": "user",
@@ -1011,7 +1011,7 @@
             "CAM_BACK_LEFT": "/home/cchang/CS503_VisualIntelligence/data/nuscenes/samples/CAM_BACK_LEFT/n008-2018-09-18-13-10-39-0400__CAM_BACK_LEFT__1537291005197405.jpg",
             "CAM_BACK_RIGHT": "/home/cchang/CS503_VisualIntelligence/data/nuscenes/samples/CAM_BACK_RIGHT/n008-2018-09-18-13-10-39-0400__CAM_BACK_RIGHT__1537291005178113.jpg"
         },
-        "answer": "The ego vehicle can cause a collision with <c1,CAM_FRONT_LEFT,231.5,472.1> if it fails to stop at the stop sign, fails to yield to oncoming traffic, or fails to maintain a safe distance from other vehicles.",
+        "answer": "If the ego vehicle turns left, it can collide with <c1,CAM_FRONT_LEFT,231.5,472.1>.",
         "user_message": [
             {
                 "role": "user",
@@ -1711,7 +1711,7 @@
             "CAM_BACK_LEFT": "/home/cchang/CS503_VisualIntelligence/data/nuscenes/samples/CAM_BACK_LEFT/n015-2018-08-03-15-00-36+0800__CAM_BACK_LEFT__1533280039197423.jpg",
             "CAM_BACK_RIGHT": "/home/cchang/CS503_VisualIntelligence/data/nuscenes/samples/CAM_BACK_RIGHT/n015-2018-08-03-15-00-36+0800__CAM_BACK_RIGHT__1533280039177893.jpg"
         },
-        "answer": "Turn left. Probability: 1.",
+        "answer": "Turn left. Probability is 1.",
         "user_message": [
             {
                 "role": "user",
