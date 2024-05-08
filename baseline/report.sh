@@ -1,3 +1,3 @@
 #!/bin/bash
-
-python drivelm/challenge/evaluation.py --root_path1 baseline/test-output-tff.json --root_path2 /mnt/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/test_eval.json
+prediction_path=$1
+python drivelm/challenge/evaluation.py --root_path1 $prediction_path --root_path2 /home/rak/thinking-fast-and-furious/drivelm/challenge/test.json
