@@ -1,6 +1,7 @@
 import numpy as np
 import json
 import random
+import argparse
 
 
 def rule_based1(question, answer):
@@ -68,8 +69,22 @@ def loop_test(root, dst):
         json.dump(test_file, f, indent=4)
 
 
-
+def parse_args():
+    parser = argparse.ArgumentParser(description='Train IDEFICS model')
+    parser.add_argument(
+        "--input-json-path",
+        type=str,
+        help="json path to the train/test file before mcq conversion",
+    )
+    parser.add_argument(
+        "--output-json-path",
+        type=str,
+        help="json path to the train/test file after mcq conversion",
+    )
+    return parser.parse_args()
+    
+    
 if __name__ == '__main__':
-    root = "test.json"
-    dst = "test_eval.json"
-    loop_test(root, dst)
+    args = parse_args()
+    
+    loop_test(args.input_json_path, args.output_json_path)
