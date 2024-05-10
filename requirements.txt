@@ -18,3 +18,4 @@ tqdm
 accelerate
 peft
 bitsandbytes
+wandb

@@ -86,6 +86,7 @@ COPY --chown=${USER_NAME} ./requirements.txt .
 RUN ${CONDA} run -n ${CONDA_ENV} pip install -r ./requirements.txt
 RUN ${CONDA} run -n ${CONDA_ENV} pip install git+https://github.com/bckim92/language-evaluation.git
 RUN ${CONDA} run -n ${CONDA_ENV} python -c "import language_evaluation; language_evaluation.download('coco')"
+RUN ${CONDA} run -n ${CONDA_ENV} pip install ipykernel ipywidgets
 
 COPY --chown=${USER_NAME} ./docker/entrypoint.sh .
 RUN chmod +x ./entrypoint.sh
