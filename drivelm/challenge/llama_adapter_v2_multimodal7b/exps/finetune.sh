@@ -12,5 +12,5 @@ python -u -m torch.distributed.launch --master_port=1112 --nproc_per_node=1 --us
  --epochs 4 --warmup_epochs 1 --blr 10e-4 --weight_decay 0.02 \
  --llama_path "$LLAMA_PATH" \
  --output_dir "$OUTPUT_DIR" \
- --pretrained_path "$PRETRAINED_PATH" \
- &>> "$OUTPUT_DIR"/output.log &
+ --pretrained_path "$PRETRAINED_PATH"
+#  &>> "$OUTPUT_DIR"/output.log
