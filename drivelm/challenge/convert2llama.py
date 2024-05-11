@@ -47,7 +47,7 @@ def convert2llama(root, dst):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-i", "--input-path", type=str, default="/mnt/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/v1_1_train_nus_ext.json", help="Input data path")
+    parser.add_argument("-i", "--input-path", type=str, default="/mnt/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/v1_1_train_nus_ext_converted.json", help="Input data path")
 
     args = parser.parse_args()
 
