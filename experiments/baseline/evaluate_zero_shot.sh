@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python ../../drivelm/challenge/llama_adapter_v2_multimodal7b/demo.py --llama_dir /mnt/nlpdata1/share/models/llama2-7B --checkpoint /mnt/nlpdata1/home/ismayilz/cs503-project/models/llama_adapter_v2_pretrained/1bcbffc43484332672092e0024a8699a6eb5f558161aebf98a7c6b1db67224d1_LORA-BIAS-7B.pth --data /mnt/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/test_eval_llama.json --output outputs/test-eval-llama-adapter-v2-zero-shot.json --batch_size 4 --num_processes 1
