@@ -9,7 +9,7 @@ from datasets import load_dataset
 from sklearn.model_selection import train_test_split 
 import os
 
-CHECKPOINT_DIR = "experiments/eea/models/"
+CHECKPOINT_DIR = "/home/rak/thinking-fast-and-furious/experiments/idefics2/models"
 IMAGE_SRC_X, IMAGE_SRC_Y = 1600, 900
 IMAGE_TGT_X, IMAGE_TGT_Y = int(IMAGE_SRC_X / 2.5), int(IMAGE_SRC_Y / 2.5)
 
@@ -31,7 +31,6 @@ def parse_args():
         "--train-data-path",
         type=str,
         help="train data (after mcq conversion) path",
-        default='experiments/eea/data/nuscenes/train_v1_ext_idefics.json'
     )
     return parser.parse_args()
     
@@ -81,7 +80,6 @@ def main():
     )
     
     checkpoint_dir = os.path.join(CHECKPOINT_DIR, args.experiment_name)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     processor = AutoProcessor.from_pretrained(
     "HuggingFaceM4/idefics2-8b",
@@ -124,14 +122,14 @@ def main():
         per_device_train_batch_size=2,
         per_device_eval_batch_size=8,
         gradient_accumulation_steps=8,
-        warmup_steps=20,
-        learning_rate=1e-4,
+        warmup_steps=50,
+        learning_rate=5e-5,
         weight_decay=0.01,
         logging_steps=25,
         output_dir=checkpoint_dir,
         save_strategy="steps",
-        save_steps=50,
-        save_total_limit=1,
+        save_steps=100,
+        save_total_limit=5,
         evaluation_strategy="steps",
         eval_steps=50,
         fp16=True,

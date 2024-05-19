@@ -163,8 +163,11 @@ cython_debug/
 # Large files
 /baseline/experiments/eea/data/*
 /baseline/experiments/eea/models/*
+/experiments/idefics2/models/*
 /drivelm/challenge/llamas/*
 /experiments/redcircle/models/*
 /experiments/redcircle/wandb/*
+
 # Logs
 /baseline/wandb/*
+*/wandb/*
