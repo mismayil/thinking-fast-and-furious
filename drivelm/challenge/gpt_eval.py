@@ -1,4 +1,4 @@
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 import pickle
 import pdb
 import numpy as np
@@ -10,7 +10,19 @@ import os
 
 class GPTEvaluation:
     def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        azure_openai_key = os.getenv("AZURE_OPENAI_API_KEY")
+        
+        if openai_api_key:
+            self.client = OpenAI(api_key=openai_api_key)
+        elif azure_openai_key:
+            self.client = AzureOpenAI(
+                api_key = azure_openai_key,
+                api_version = '2024-02-15-preview',
+                azure_endpoint='https://sigturk-openai.openai.azure.com/'
+            )
+        else:
+            raise ValueError("Evaluation requires OpenAI API Key")
 
     def call_chatgpt(self, chatgpt_messages, max_tokens=40, model="gpt-3.5-turbo"):
         response = self.client.chat.completions.create(
