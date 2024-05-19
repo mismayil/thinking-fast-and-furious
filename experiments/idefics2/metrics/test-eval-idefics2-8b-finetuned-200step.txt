@@ -1,6 +1,0 @@
-evaluation start!
-accuracy score:  0.0
-chatgpt score:  59.111111111111114
-match score:  38.25
-language score:  {'val/Bleu_1': 0.6506172839498141, 'val/Bleu_2': 0.5971436250441355, 'val/Bleu_3': 0.5447228864742204, 'val/Bleu_4': 0.49249575482938557, 'val/ROUGE_L': 0.7377717299553619, 'val/CIDEr': 0.0917735647213}
-final score:  0.4008240427112365
