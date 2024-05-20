@@ -169,5 +169,4 @@ cython_debug/
 /experiments/redcircle/wandb/*
 
 # Logs
-/baseline/wandb/*
-wandb/*
+wandb
