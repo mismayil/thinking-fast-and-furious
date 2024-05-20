@@ -5,8 +5,11 @@ import torch
 import copy
 import json
 import argparse
+from termcolor import colored
+from datasets import load_dataset
 
 def eval_model(model, processor, test_set, verbose=False):
+    model.eval()
     predictions = []
     device = model.device
     for idefics_sample in tqdm(test_set):
@@ -29,9 +32,9 @@ def eval_model(model, processor, test_set, verbose=False):
         prediction['answer'] = predicted_text
         predictions.append(prediction)
         if verbose:
-            print(idefics_sample['question_text'])
-            print('Predicted:', predicted_text)
-            print('GT:', prediction['gt'])
+            print(colored(idefics_sample['question_text'], 'blue'))
+            print(colored('Predicted:', 'blue'), predicted_text)
+            print(colored('GT:', 'blue'), prediction['gt'])
     return predictions
 
 
@@ -78,9 +81,8 @@ def main():
         quantization_config=bnb_config,
     )
     
-    with open(args.test_data_path, "r") as f:
-        test_idefics_dataset = json.load(f)
-    
+    test_idefics_dataset  = load_dataset('json', data_files=args.test_data_path, split='train')
+
     predictions = eval_model(finetuned_model, processor, test_idefics_dataset)
     with open(args.prediction_data_path, "w") as f:
         json.dump(predictions, f)
