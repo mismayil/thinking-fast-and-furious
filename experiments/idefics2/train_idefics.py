@@ -4,14 +4,12 @@ import torch
 from peft import LoraConfig
 from transformers import AutoProcessor, BitsAndBytesConfig, Idefics2ForConditionalGeneration
 from transformers import TrainingArguments, Trainer
-from transformers.image_utils import load_image
 from datasets import load_dataset
 from sklearn.model_selection import train_test_split 
+from data_utils import GVQADataCollator
 import os
 
 CHECKPOINT_DIR = "/home/rak/thinking-fast-and-furious/experiments/idefics2/models"
-IMAGE_SRC_X, IMAGE_SRC_Y = 1600, 900
-IMAGE_TGT_X, IMAGE_TGT_Y = int(IMAGE_SRC_X / 2.5), int(IMAGE_SRC_Y / 2.5)
 
 
 def parse_args():
@@ -34,40 +32,6 @@ def parse_args():
     )
     return parser.parse_args()
     
-
-
-class GVQADataCollator:
-    def __init__(self, processor):
-        self.processor = processor
-        self.image_token_id = processor.tokenizer.additional_special_tokens_ids[
-            processor.tokenizer.additional_special_tokens.index("<image>")
-        ]
-
-    def __call__(self, examples):
-        texts = []
-        images = []
-        for example in examples:
-            sample_images = [load_image(image_path).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_path in example['images'].values()]
-            answer_text = example["answer"]
-            answer_message = {
-                    "role": "assistant",
-                    "content": [
-                        {"type": "text", "text": answer_text}
-                    ]
-            }
-            user_message = example['user_message'][0]
-            messages = [user_message, answer_message]
-            text = self.processor.apply_chat_template(messages, add_generation_prompt=False)
-            texts.append(text.strip())
-            images.append(sample_images)
-
-        batch = self.processor(text=texts, images=images, return_tensors="pt", padding=True)
-        labels = batch["input_ids"].clone()
-        labels[labels == self.processor.tokenizer.pad_token_id] = self.image_token_id
-        batch["labels"] = labels
-
-        return batch
-
 
 def main():
     args = parse_args()
@@ -137,7 +101,7 @@ def main():
         report_to="wandb",
         run_name=args.experiment_name,
     )
-    data_collator = GVQADataCollator(processor)
+    data_collator = GVQADataCollator(processor, chat_template='tagged')
 
     trainer = Trainer(
         model=model,

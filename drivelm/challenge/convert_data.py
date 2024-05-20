@@ -73,11 +73,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train IDEFICS model')
     parser.add_argument(
         "--input-json-path",
+        "-i", 
         type=str,
         help="json path to the train/test file before mcq conversion",
     )
     parser.add_argument(
         "--output-json-path",
+        "-o",
         type=str,
         help="json path to the train/test file after mcq conversion",
     )
