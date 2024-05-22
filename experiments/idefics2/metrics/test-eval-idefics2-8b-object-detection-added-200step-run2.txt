@@ -1,0 +1,5 @@
+accuracy score:  0.8181818181818182
+chatgpt score:  60.0
+match score:  36.125
+language score:  {'val/Bleu_1': 0.7441540577706408, 'val/Bleu_2': 0.6889725894771186, 'val/Bleu_3': 0.6353096844074796, 'val/Bleu_4': 0.581903113725646, 'val/ROUGE_L': 0.7844785445298927, 'val/CIDEr': 0.44686412205125614}
+final score:  0.5753363515083797

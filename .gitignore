@@ -162,6 +162,9 @@ cython_debug/
 
 # Large files
 /baseline/experiments/eea/data/*
+!/baseline/experiments/eea/data/nuscenes/
+/baseline/experiments/eea/data/nuscenes/*
+!/baseline/experiments/eea/data/nuscenes/*od*.json
 /baseline/experiments/eea/models/*
 /experiments/idefics2/models/*
 /drivelm/challenge/llamas/*
