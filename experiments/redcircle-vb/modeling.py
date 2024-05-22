@@ -123,9 +123,10 @@ def produce_idefics_dataset(samples, output_path=None):
             
     return idefics_samples
 
-def objects_to_dict(question):
-    # get all objects in the question
-    objects = re.findall(r'<[^>]*>', question)
+def get_objects(text):
+    return re.findall(r'<[^>]*>', text)
+
+def objects_to_dict(objects):
     unique_objects = list(set(objects))
     result = {}
     for obj in unique_objects:
@@ -146,7 +147,7 @@ def objects_to_dict(question):
     return result
 
 
-def draw_circle(image_path,image_key, objects, colors=["red"]):
+def draw_circle(image_path, image_key, objects, colors=["red"]):
     image = load_image(image_path)
     assert len(objects) <= len(colors)
 
@@ -177,39 +178,61 @@ def construct_for_viz(image_paths,images):
         image_paths[key]=images[i]
     return image_paths
 
-def prepare_sample_for_eval(sample, processor, verbose=False):
+def prepare_prompt(sample, verbose=False):
     image_paths = sample['images']
-    objects = objects_to_dict(sample['question_text'])
+    question_text = sample['question_text']
+    question = question_text
+    context = None
+
+    if "Task:" in question_text:
+        parts = question_text.split("Task:")
+        context = parts[0].strip()
+        question = parts[1].strip()
+
+    context_objects = get_objects(context)
+    question_objects = get_objects(question)
+    dict_objects = objects_to_dict(question_objects)
     colors = ["red", "blue", "black", "white"]
-    images = [draw_circle(image_paths[image_key], image_key, objects, colors=colors).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_key in image_paths.keys()]
+    images = [draw_circle(image_paths[image_key], image_key, dict_objects, colors=colors).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_key in image_paths.keys()]
     
     if verbose:
-        image_viz = construct_for_viz(copy.deepcopy(image_paths),images)
+        image_viz = construct_for_viz(copy.deepcopy(image_paths), images)
         vizualize_frames(image_viz)
-        print('objects:',objects)
-    
-    prompt = processor.apply_chat_template(sample['user_message'], add_generation_prompt=True)
-    
-    raw_objects = re.findall(r'<[^>]*>', sample['question_text'])
+        print('objects:', dict_objects)
 
-    for object, color in zip(raw_objects, colors[:len(objects)]):
-        prompt = prompt.replace(object, f"the object marked with {color} circle")
-        prompt = prompt.replace("object the object", "the object")
+    for object, color in zip(question_objects, colors[:len(dict_objects)]):
+        question = question.replace(object, f"the object marked with {color} circle")
+        question = question.replace("object the object", "the object")
+
+        if object in context_objects:
+            context = context.replace(object, f"the object marked with {color} circle")
+            context = context.replace("object the object", "the object")
     
+    prompt = question
+
+    if context:
+        prompt = f"{context}\nTask:\n{question}"
+    else:
+        prompt = f"Context: None\nTask:\n{question}"
+
+    sample["user_message"][0]["content"][-1]["text"] = prompt
+    sample["prompt"] = prompt
+
     return prompt, images
 
 def batched(lst, size=4):
     for i in range(0, len(lst), size):
         yield lst[i:i+size]
 
-def eval_model(model, test_set, processor, batch_size=4, verbose=False):
+def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template=TAGGED_CHAT_TEMPLATE):
     predictions = []
     
     for idefics_batch in tqdm(batched(test_set, batch_size), total=len(test_set)//batch_size):
-        eval_batch = [prepare_sample_for_eval(sample, processor, verbose=verbose) for sample in idefics_batch]
-        batch_prompts = [b[0] for b in eval_batch]
+        eval_batch = [prepare_prompt(sample, verbose=verbose) for sample in idefics_batch]
+        batch_messages = [sample["user_message"] for sample in idefics_batch]
         batch_images = [b[1] for b in eval_batch]
-        inputs = processor(text=batch_prompts, images=batch_images, return_tensors="pt", padding=True)
+        batch_texts = processor.apply_chat_template(batch_messages, add_generation_prompt=False, chat_template=chat_template)
+        inputs = processor(text=batch_texts, images=batch_images, return_tensors="pt", padding=True)
         inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     
         # Generate
@@ -242,41 +265,17 @@ class GVQADataCollator:
     def __call__(self, examples):
         texts = []
         images = []
+        
         for example in examples:
-            objects = objects_to_dict(example['question_text'])
-            colors = ["red", "blue", "black", "white"]
-            sample_images = [draw_circle(example['images'][image_key], image_key, objects, colors=colors).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_key in example['images'].keys()]
-
-            #for make sure red circle is there
-            # image_viz=construct_for_viz(copy.deepcopy(example['images']),sample_images)
-            # vizualize_frames(image_viz)
-            # print('Question:',)
-            # print('objects:',objects)
-            
+            prompt, sample_images = prepare_prompt(example)
             answer_text = example["answer"]
             answer_message = {
-                    "role": "assistant",
-                    "content": [
-                        {"type": "text", "text": answer_text}
-                    ]
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": answer_text}
+                ]
             }
-            user_message = example['user_message'][0]
-            question_text = user_message["content"][-1]["text"]
-            
-            question = question_text
-
-            if "Task:" in question_text:
-                parts = question_text.split("Task:")
-                question = parts[1].strip()
-            
-            raw_objects = re.findall(r'<[^>]*>', question)
-
-            for object, color in zip(raw_objects, colors[:len(objects)]):
-                question = question.replace(object, f"the object marked with {color} circle")
-                question = question.replace("object the object", "the object")
-
-            user_message["content"][-1]["text"] = question
-            messages = [user_message, answer_message]
+            messages = [example["user_message"][0], answer_message]
             text = self.processor.apply_chat_template(messages, add_generation_prompt=False, chat_template=self.chat_template)
             texts.append(text.strip())
             images.append(sample_images)
