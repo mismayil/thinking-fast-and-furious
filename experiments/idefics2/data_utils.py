@@ -2,6 +2,7 @@ from transformers.image_utils import load_image
 import matplotlib.pyplot as plt
 from PIL import Image
 
+IGNORE_INDEX = -100
 IMAGE_SRC_X, IMAGE_SRC_Y = 1600, 900
 IMAGE_TGT_X, IMAGE_TGT_Y = int(IMAGE_SRC_X / 2.5), int(IMAGE_SRC_Y / 2.5)
 TAGGED_CHAT_TEMPLATE = "{% for message in messages %}{{message['role'].capitalize()}}{% if message['content'][0]['type'] == 'image' %}{{':'}}{% else %}{{': '}}{% endif %}{% for line in message['content'] %}{% if line['type'] == 'text' %}{{line['text']}}{% elif line['type'] == 'image' %}{{line['text']}}{{': <image> ' }}{% endif %}{% endfor %}<end_of_utterance>\n{% endfor %}{% if add_generation_prompt %}{{ 'Assistant:' }}{% endif %}"
@@ -54,7 +55,8 @@ class GVQADataCollator:
 
         batch = self.processor(text=texts, images=images, return_tensors="pt", padding=True)
         labels = batch["input_ids"].clone()
-        labels[labels == self.processor.tokenizer.pad_token_id] = self.image_token_id
+        labels[labels == self.processor.tokenizer.pad_token_id] = IGNORE_INDEX
+        labels[labels == self.image_token_id] = IGNORE_INDEX
         batch["labels"] = labels
 
         return batch
