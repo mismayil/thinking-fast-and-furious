@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from data_utils import GVQADataCollator
 import os
 
-CHECKPOINT_DIR = "/home/cchang/CS503_VisualIntelligence/thinking-fast-and-furious/experiments/idefics2/models"
+CHECKPOINT_DIR = "/scratch/izar/cchang/CS503/checkpoint"
 
 
 def parse_args():
