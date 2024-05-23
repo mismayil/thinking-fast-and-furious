@@ -11,6 +11,7 @@ import os
 
 CHECKPOINT_DIR = "/home/cchang/CS503_VisualIntelligence/thinking-fast-and-furious/experiments/idefics2/models"
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train IDEFICS model')
     parser.add_argument(
@@ -46,8 +47,7 @@ def main():
     
     processor = AutoProcessor.from_pretrained(
     "HuggingFaceM4/idefics2-8b",
-    do_image_splitting=False,
-    image_seq_len=16
+    do_image_splitting=False
 )
 
     lora_config = LoraConfig(
@@ -83,7 +83,7 @@ def main():
     
     training_args = TrainingArguments(
         max_steps=args.steps,
-        per_device_train_batch_size=3,
+        per_device_train_batch_size=2,
         per_device_eval_batch_size=8,
         gradient_accumulation_steps=8,
         warmup_steps=50,
@@ -101,7 +101,6 @@ def main():
         report_to="wandb",
         run_name=args.experiment_name,
         load_best_model_at_end=True,
-        
     )
     data_collator = GVQADataCollator(processor, chat_template='tagged')
 
