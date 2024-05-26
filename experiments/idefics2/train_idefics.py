@@ -100,6 +100,7 @@ def main():
         remove_unused_columns=False,
         report_to="wandb",
         run_name=args.experiment_name,
+        load_best_model_at_end=True,
     )
     data_collator = GVQADataCollator(processor, chat_template='tagged')
 

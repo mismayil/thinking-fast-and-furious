@@ -165,6 +165,7 @@ cython_debug/
 !/baseline/experiments/eea/data/nuscenes/
 /baseline/experiments/eea/data/nuscenes/*
 !/baseline/experiments/eea/data/nuscenes/*od*.json
+!/baseline/experiments/eea/data/nuscenes/test_idefics.json
 /baseline/experiments/eea/models/*
 /experiments/idefics2/models/*
 /drivelm/challenge/llamas/*
@@ -173,3 +174,5 @@ cython_debug/
 
 # Logs
 wandb
+
+/drivelm/challenge/evaluation_copy.py
