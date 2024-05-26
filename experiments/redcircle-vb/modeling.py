@@ -45,7 +45,7 @@ def process_scene(scene_id, scene, image_dir=IMAGE_DIR, apply_context=None):
         assert len(image_paths) == 6, "not all views provided"
         question_id = 0
         context = "Context:"
-        last_context = ""
+        last_context = "Context: None"
         for question_type, questions in frame['QA'].items():
             current_context = ""
             
@@ -224,33 +224,55 @@ def batched(lst, size=4):
     for i in range(0, len(lst), size):
         yield lst[i:i+size]
 
-def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template=TAGGED_CHAT_TEMPLATE):
-    predictions = []
-    
-    for idefics_batch in tqdm(batched(test_set, batch_size), total=len(test_set)//batch_size):
-        eval_batch = [prepare_prompt(sample, verbose=verbose) for sample in idefics_batch]
-        batch_messages = [sample["user_message"] for sample in idefics_batch]
-        batch_images = [b[1] for b in eval_batch]
-        batch_texts = processor.apply_chat_template(batch_messages, add_generation_prompt=False, chat_template=chat_template)
-        inputs = processor(text=batch_texts, images=batch_images, return_tensors="pt", padding=True)
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-    
-        # Generate
-        generated_ids = model.generate(**inputs, max_new_tokens=256)
-        generated_texts = processor.batch_decode(generated_ids, skip_special_tokens=True)
+def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template=TAGGED_CHAT_TEMPLATE, apply_context=None):
+    def _eval_on_dataset(dataset):
+        predictions = []
+        
+        for idefics_batch in tqdm(batched(dataset, batch_size), total=len(test_set)//batch_size):
+            eval_batch = [prepare_prompt(sample, verbose=verbose) for sample in idefics_batch]
+            batch_messages = [sample["user_message"] for sample in idefics_batch]
+            batch_images = [b[1] for b in eval_batch]
+            batch_texts = processor.apply_chat_template(batch_messages, add_generation_prompt=False, chat_template=chat_template)
+            inputs = processor(text=batch_texts, images=batch_images, return_tensors="pt", padding=True)
+            inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+        
+            # Generate
+            generated_ids = model.generate(**inputs, max_new_tokens=256)
+            generated_texts = processor.batch_decode(generated_ids, skip_special_tokens=True)
 
-        for idefics_sample, generated_text in zip(idefics_batch, generated_texts):
-            predicted_text = generated_text.split('\n')[-1][len("Assistant: "):]
-            prediction = copy.deepcopy(idefics_sample)
-            prediction['gt'] = prediction['answer']
-            prediction['answer'] = predicted_text
-            predictions.append(prediction)
-            if verbose:
-                print(idefics_sample['question_text'])
-                print('Predicted:', predicted_text)
-                print('GT:', prediction['gt'])
+            for idefics_sample, generated_text in zip(idefics_batch, generated_texts):
+                predicted_text = generated_text.split('\n')[-1][len("Assistant: "):]
+                prediction = copy.deepcopy(idefics_sample)
+                prediction['gt'] = prediction['answer']
+                prediction['answer'] = predicted_text
+                predictions.append(prediction)
+                if verbose:
+                    print(idefics_sample["user_message"][0]["content"][-1]["text"])
+                    print('Predicted:', predicted_text)
+                    print('GT:', prediction['gt'])
 
-    return predictions
+        return predictions
+
+    if apply_context == "chain":
+        perception_set = [sample for sample in test_set if sample["question_type"] == "perception"]
+        prediction_set = [sample for sample in test_set if sample["question_type"] == "prediction"]
+        planning_set = [sample for sample in test_set if sample["question_type"] == "planning"]
+        behavior_set = [sample for sample in test_set if sample["question_type"] == "behavior"]
+
+        previous_predictions = None
+
+        for dataset in [perception_set, prediction_set, planning_set, behavior_set]:
+            for sample in dataset:
+                if previous_predictions:
+                    scene, frame, _ = sample["id"].split("_")
+                    previous_samples = [s for s in previous_predictions if s["id"].startswith(f"{scene}_{frame}")]
+                    context = "\n".join([f"Q:{s['question_text']}\nA:{s['answer']}" for s in previous_samples])
+                    sample["user_message"][0]["content"][-1]["text"] = f"Context:\n{context}\nTask:\n{sample['question_text']}"
+                else:
+                    sample["user_message"][0]["content"][-1]["text"] = f"Context: None\nTask:\n{sample['question_text']}"
+            previous_predictions = _eval_on_dataset(dataset)
+    else:
+        return _eval_on_dataset(test_set)
 
 class GVQADataCollator:
     def __init__(self, processor, chat_template="tagged"):

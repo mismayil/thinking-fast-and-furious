@@ -30,13 +30,13 @@ if __name__ == "__main__":
     )
     
     model = load_model(checkpoint_dir, eval_mode=True, use_lora=USE_LORA, use_qlora=USE_QLORA, device=DEVICE)
-    test_dataset = process_dataset(test_data_path, image_dir=IMAGE_DIR, apply_context="chain")
+    test_dataset = process_dataset(test_data_path, image_dir=IMAGE_DIR)
 
     test_idefics_dataset = produce_idefics_dataset(test_dataset)
 
-    predictions = eval_model(model, test_idefics_dataset, processor, batch_size=16)
+    predictions = eval_model(model, test_idefics_dataset, processor, batch_size=16, verbose=True, apply_context="chain")
 
     # path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/outputs/v1_1-val-idefics2-8b-fine-tuned-redcircle-vb-1000step.json"
-    path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/outputs/test-eval-idefics2-8b-fine-tuned-redcircle-vb-chain-1epoch.json"
+    path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/outputs/test-eval-idefics2-8b-fine-tuned-redcircle-vb-chain-inf-pred-1epoch.json"
     with open(path, "w") as f:
         json.dump(predictions, f, indent=4)
