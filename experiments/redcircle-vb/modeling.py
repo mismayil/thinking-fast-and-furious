@@ -38,59 +38,43 @@ def vizualize_frames(image_paths):
         axes[x_id][y_view_mapping[y]].axis('off')
     plt.show()
     
-def process_scene(scene_id, scene, image_dir=IMAGE_DIR, apply_context=None):
+def process_scene(scene_id, scene, image_dir=IMAGE_DIR):
     samples = []
     for frame_id, frame in scene['key_frames'].items():
         image_paths = {view_name: view_path.replace(IMAGE_PATH_PREFIX, image_dir) for view_name, view_path in frame['image_paths'].items()}
         assert len(image_paths) == 6, "not all views provided"
         question_id = 0
-        context = "Context:"
-        last_context = "Context: None"
-        for question_type, questions in frame['QA'].items():
-            current_context = ""
-            
+
+        for question_type, questions in frame['QA'].items():            
             for question_info in questions:
                 question = question_info['Q']
                 answer = question_info['A'] if "A" in question_info else ""
                 sample_id = f"{scene_id}_{frame_id}_{question_id}"
                 question_id += 1
 
-                if apply_context == "graph":
-                    question_text = f"{context}\nTask:\n{question}"
-                elif apply_context == "chain":
-                    question_text = f"{last_context}\nTask:\n{question}"
-                else:
-                    question_text = question
-
                 samples.append({
                     "id": sample_id, #change key here from sample_id to id
                     "question_type": question_type,
-                    "question_text": question_text.strip(),
+                    "question_text": question.strip(),
                     "images": image_paths,
                     "answer": answer,
                     "tag": question_info["tag"]
                 })
 
-                current_context = f"{current_context}\nQ:{question}\nA:{answer}"
-
-            last_context = f"Context:\n{current_context.strip()}"
-            context = f"{context}\n{current_context.strip()}"
-
     return samples
 
 
-def process_dataset(data_path, output_path=None, image_dir=IMAGE_DIR, apply_context=None):
+def process_dataset(data_path, output_path=None, image_dir=IMAGE_DIR):
     with open(data_path, "r") as f:
         dataset: Dict[str, str] = json.load(f)
     samples = []
     for scene_id, scene in tqdm(dataset.items()):
-        samples.extend(process_scene(scene_id, scene, image_dir=image_dir, apply_context=apply_context))
+        samples.extend(process_scene(scene_id, scene, image_dir=image_dir))
     if output_path:
         pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:
             json.dump(samples, f, indent=4)
     return samples
-
 
 def convert_sample_to_idefics(sample):
     idefics_sample = copy.deepcopy(sample)
@@ -112,10 +96,47 @@ def convert_sample_to_idefics(sample):
     idefics_sample["user_message"] = user_message
     return idefics_sample
 
-def produce_idefics_dataset(samples, output_path=None):
+def add_context_to_idefics_dataset(idefics_dataset, apply_context=None, apply_on_stages="all"):
+    if not apply_context:
+        return idefics_dataset
+    
+    previous_stage_map = {
+        "perception": None,
+        "prediction": "perception",
+        "planning": "prediction",
+        "behavior": "planning"
+    }
+    
+    if apply_context == "chain":
+        for sample in idefics_dataset:
+            stage = sample["question_type"]
+
+            if apply_on_stages == "all" or stage == apply_on_stages or stage in apply_on_stages:
+                scene, frame, _ = sample["id"].split("_")
+                previous_stage = previous_stage_map[stage]
+                context = None
+                
+                if previous_stage:
+                    previous_stage_samples = [s for s in idefics_dataset if s["id"].startswith(f"{scene}_{frame}") and s["question_type"] == previous_stage]
+                    context = "\n".join([f"Q:{s['question_text']}\nA:{s['answer']}" for s in previous_stage_samples])
+                
+                if context:
+                    sample["user_message"][0]["content"][-1]["text"] = f"Context:\n{context}\nTask:\n{sample['question_text']}"
+                else:
+                    sample["user_message"][0]["content"][-1]["text"] = f"Context: None\nTask:\n{sample['question_text']}"
+    else:
+        raise NotImplementedError(f"{apply_context} not supported")
+
+    return idefics_dataset
+
+def produce_idefics_dataset(samples, output_path=None, apply_context=None, apply_context_on_stages="all"):
     idefics_samples = []
+    
     for sample in samples:
         idefics_samples.append(convert_sample_to_idefics(sample))
+    
+    add_context_to_idefics_dataset(idefics_samples, apply_context=apply_context, apply_on_stages=apply_context_on_stages)
+    
     if output_path:
         pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:
@@ -180,7 +201,7 @@ def construct_for_viz(image_paths,images):
 
 def prepare_prompt(sample, verbose=False):
     image_paths = sample['images']
-    question_text = sample['question_text']
+    question_text = sample["user_message"][0]["content"][-1]["text"]
     question = question_text
     context = None
 
@@ -189,7 +210,6 @@ def prepare_prompt(sample, verbose=False):
         context = parts[0].strip()
         question = parts[1].strip()
 
-    context_objects = get_objects(context)
     question_objects = get_objects(question)
     dict_objects = objects_to_dict(question_objects)
     colors = ["red", "blue", "black", "white"]
@@ -204,7 +224,7 @@ def prepare_prompt(sample, verbose=False):
         question = question.replace(object, f"the object marked with {color} circle")
         question = question.replace("object the object", "the object")
 
-        if object in context_objects:
+        if context:
             context = context.replace(object, f"the object marked with {color} circle")
             context = context.replace("object the object", "the object")
     
@@ -212,8 +232,6 @@ def prepare_prompt(sample, verbose=False):
 
     if context:
         prompt = f"{context}\nTask:\n{question}"
-    else:
-        prompt = f"Context: None\nTask:\n{question}"
 
     sample["user_message"][0]["content"][-1]["text"] = prompt
     sample["prompt"] = prompt
@@ -228,7 +246,7 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
     def _eval_on_dataset(dataset):
         predictions = []
         
-        for idefics_batch in tqdm(batched(dataset, batch_size), total=len(test_set)//batch_size):
+        for idefics_batch in tqdm(batched(dataset, batch_size), total=len(dataset)//batch_size):
             eval_batch = [prepare_prompt(sample, verbose=verbose) for sample in idefics_batch]
             batch_messages = [sample["user_message"] for sample in idefics_batch]
             batch_images = [b[1] for b in eval_batch]
@@ -247,9 +265,11 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
                 prediction['answer'] = predicted_text
                 predictions.append(prediction)
                 if verbose:
+                    print()
                     print(idefics_sample["user_message"][0]["content"][-1]["text"])
                     print('Predicted:', predicted_text)
                     print('GT:', prediction['gt'])
+                    print()
 
         return predictions
 
@@ -259,18 +279,15 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
         planning_set = [sample for sample in test_set if sample["question_type"] == "planning"]
         behavior_set = [sample for sample in test_set if sample["question_type"] == "behavior"]
 
-        previous_predictions = None
+        previous_predictions = []
+        predictions = []
 
-        for dataset in [perception_set, prediction_set, planning_set, behavior_set]:
-            for sample in dataset:
-                if previous_predictions:
-                    scene, frame, _ = sample["id"].split("_")
-                    previous_samples = [s for s in previous_predictions if s["id"].startswith(f"{scene}_{frame}")]
-                    context = "\n".join([f"Q:{s['question_text']}\nA:{s['answer']}" for s in previous_samples])
-                    sample["user_message"][0]["content"][-1]["text"] = f"Context:\n{context}\nTask:\n{sample['question_text']}"
-                else:
-                    sample["user_message"][0]["content"][-1]["text"] = f"Context: None\nTask:\n{sample['question_text']}"
+        for stage, dataset in [("perception", perception_set), ("prediction", prediction_set), ("planning", planning_set), ("behavior", behavior_set)]:
+            add_context_to_idefics_dataset(previous_predictions + dataset, apply_context=apply_context, apply_on_stages=stage)
             previous_predictions = _eval_on_dataset(dataset)
+            predictions.extend(previous_predictions)
+        
+        return predictions
     else:
         return _eval_on_dataset(test_set)
 
