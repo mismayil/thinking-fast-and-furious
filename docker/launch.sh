@@ -3,13 +3,13 @@
 MY_IMAGE="ic-registry.epfl.ch/nlp/mete/cs503-project"
 
 arg_job_prefix="cs503-project"
-arg_job_suffix="0"
+arg_job_suffix="1"
 arg_job_name="$arg_job_prefix-$arg_job_suffix"
 
 command=$1
 num_gpu=${2:-1}
 num_cpu=${3:-8}
-gpu_memory=${4:-40G}
+gpu_memory=${4:-60G}
 
 # Run this for train mode
 if [ "$command" == "run" ]; then
@@ -36,7 +36,7 @@ if [ "$command" == "run_bash" ]; then
 		--pvc runai-nlp-ismayilz-nlpdata1:/mnt/nlpdata1 \
 		--pvc runai-nlp-ismayilz-scratch:/mnt/scratch \
 		--service-type=nodeport \
-		--port 31122:22 \
+		--port 31123:22 \
 		--interactive \
         --node-type G10 \
 		--large-shm
