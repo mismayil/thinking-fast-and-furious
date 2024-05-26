@@ -5,9 +5,11 @@ from PIL import ImageDraw
 from typing import Dict
 from tqdm import tqdm
 import copy, pathlib, re, os
-from transformers import AutoProcessor, BitsAndBytesConfig, Idefics2ForConditionalGeneration
+from transformers import BitsAndBytesConfig, Idefics2ForConditionalGeneration
 import torch
 from peft import LoraConfig
+import random 
+from collections import defaultdict
 
 MNT_POINT = "/mnt/u14157_ic_nlp_001_files_nfs"
 
@@ -68,7 +70,7 @@ def process_dataset(data_path, output_path=None, image_dir=IMAGE_DIR):
     with open(data_path, "r") as f:
         dataset: Dict[str, str] = json.load(f)
     samples = []
-    for scene_id, scene in tqdm(dataset.items()):
+    for scene_id, scene in tqdm(dataset.items(), desc="Processing dataset"):
         samples.extend(process_scene(scene_id, scene, image_dir=image_dir))
     if output_path:
         pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -96,6 +98,70 @@ def convert_sample_to_idefics(sample):
     idefics_sample["user_message"] = user_message
     return idefics_sample
 
+object_detection_questions = [
+    "What is the object {}?",
+    "What is the bounding box and the category of the {} in {} of the ego vehicle?",
+    "What is the center coordinate of the {} in {} of the ego vehicle?", 
+    "What is the status of the {} ({})?"
+]
+
+def create_object_detection_questions(ko_id, key_object):
+    _, view, center_coords = ko_id[1:-1].split(',', 2)
+    category = key_object['Category']
+    status =  key_object['Status']
+    description = key_object['Visual_description'].rstrip('.')
+    bbox = ",".join(map(str, key_object['2d_bbox']))
+    view_verbalized = " ".join(view.split('_')[1:]).lower()
+
+    n_question_options = 3 + (status is not None)
+    qa_id = random.randint(1, n_question_options) - 1
+    obj_questions = []
+
+    for qa_id in range(n_question_options):
+        question_args = [[ko_id], [description, view_verbalized],  [description, view_verbalized], [description, ko_id]]
+        answer_args =  [[description], [bbox, category], [center_coords], [status]]
+        question = object_detection_questions[qa_id].format(*question_args[qa_id])
+        answer = " ".join(answer_args[qa_id])
+        obj_questions.append({
+            "qa_id": qa_id,
+            "question": question,
+            "answer": answer
+        })
+
+    return obj_questions
+    
+def prepare_object_detection_dataset(data_path, output_path=None):
+    with open(data_path, "r") as f:
+        dataset = json.load(f)
+    samples = []
+    
+    for scene_id, scene in tqdm(dataset.items(), desc="Preparing object detection dataset"):
+        for frame_id, frame in scene['key_frames'].items():
+            image_paths = {view_name: view_path.replace(IMAGE_PATH_PREFIX, IMAGE_DIR) for view_name, view_path in frame['image_paths'].items()}
+            for object_id, (ko_id, key_object) in enumerate(frame['key_object_infos'].items()):
+                obj_questions = create_object_detection_questions(ko_id, key_object)
+                for obj_q in obj_questions:
+                    sample_id = f"{scene_id}_{frame_id}_{object_id}_{obj_q['qa_id']}"
+                    sample = {
+                        "id": sample_id,
+                        "question_type": "perception",
+                        "question_text": obj_q["question"],
+                        "images": image_paths,
+                        "answer": obj_q["answer"]
+                    }
+                    samples.append(sample)
+
+    if output_path:
+        with open(output_path, "w") as f:
+            json.dump(samples, f, indent=4)
+
+    return samples
+
+def parse_sample_id(sample_id):
+    id_parts = sample_id.split("_")
+    scene_id, frame_id, question_id = id_parts[0], id_parts[1], id_parts[2:]
+    return scene_id, frame_id, question_id
+
 def add_context_to_idefics_dataset(idefics_dataset, apply_context=None, apply_on_stages="all"):
     if not apply_context:
         return idefics_dataset
@@ -108,16 +174,22 @@ def add_context_to_idefics_dataset(idefics_dataset, apply_context=None, apply_on
     }
     
     if apply_context == "chain":
-        for sample in idefics_dataset:
+        idefics_dataset_map = defaultdict(list)
+
+        for sample in tqdm(idefics_dataset, desc="Creating dataset map"):
+            scene_id, frame_id, _ = parse_sample_id(sample["id"])
+            idefics_dataset_map[f"{scene_id}_{frame_id}"].append(sample)
+
+        for sample in tqdm(idefics_dataset, desc="Adding context"):
             stage = sample["question_type"]
 
             if apply_on_stages == "all" or stage == apply_on_stages or stage in apply_on_stages:
-                scene, frame, _ = sample["id"].split("_")
+                scene_id, frame_id, _ = parse_sample_id(sample["id"])
                 previous_stage = previous_stage_map[stage]
                 context = None
                 
                 if previous_stage:
-                    previous_stage_samples = [s for s in idefics_dataset if s["id"].startswith(f"{scene}_{frame}") and s["question_type"] == previous_stage]
+                    previous_stage_samples = [s for s in idefics_dataset_map[f"{scene_id}_{frame_id}"] if s["question_type"] == previous_stage]
                     context = "\n".join([f"Q:{s['question_text']}\nA:{s['answer']}" for s in previous_stage_samples])
                 
                 if context:
@@ -145,43 +217,30 @@ def produce_idefics_dataset(samples, output_path=None, apply_context=None, apply
     return idefics_samples
 
 def get_objects(text):
-    return re.findall(r'<[^>]*>', text)
+    return list(set(re.findall(r'<[^>]*>', text)))
 
-def objects_to_dict(objects):
-    unique_objects = list(set(objects))
-    result = {}
-    for obj in unique_objects:
-        # Remove '<' and '>' and split by comma
-        parts = obj.strip('<>').split(',')
-        # The identifier seems to be the second element based on your example
-        identifier = parts[1]
-        # Coordinates are the last two elements
-        coordinates = [float(parts[2]), float(parts[3])]
-        # Check if the identifier already exists in the dictionary
-        if identifier in result:
-            # Append the new coordinates to the existing list
-            result[identifier].append(coordinates)
-        else:
-            # Otherwise, create a new list with the coordinates
-            result[identifier] = [coordinates]
-    # result will look like {'CAM_BACK': [[1088.3, 497.5]], 'CAM_FRONT': [[1043.2, 82.2]]}
-    return result
+def parse_object_ref(object_ref):
+    refs = object_ref.strip('<>').split(',')
+    object_id = refs[0]
+    image_id = refs[1]
+    coordinates = [float(refs[2]), float(refs[3])]
+    return object_id, image_id, coordinates
 
-
-def draw_circle(image_path, image_key, objects, colors=["red"]):
+def draw_circle(image_path, image_key, circles):
     image = load_image(image_path)
-    assert len(objects) <= len(colors)
 
-    if image_key in objects.keys() and bool(objects):
-        for coordinate, color in zip(objects[image_key], colors):
+    for object_ref, color in circles:
+        object_id, image_id, coordinates = parse_object_ref(object_ref)
+        
+        if image_id == image_key:
             draw = ImageDraw.Draw(image)
             # Define the radius of the circle and the color
             # Base on paper: we draw red circles over the images, with radius r = 0.06H and thickness t = 0.01H, where H is the shorter side of the image.
             H= min(image.size)
             radius = 0.06 * H
             thickness = 0.01 * H
-            x = float(coordinate[0])
-            y = float(coordinate[1])
+            x = float(coordinates[0])
+            y = float(coordinates[1])
             # Calculate the bounding box of the circle to be drawn
             left_up_point = (int(x - radius), int(y - radius))
             right_down_point = (int(x + radius), int(y + radius))
@@ -199,39 +258,44 @@ def construct_for_viz(image_paths,images):
         image_paths[key]=images[i]
     return image_paths
 
+def verbalize_obj_ref(text, object, color):
+    text = text.replace(object, f"the object marked with {color} circle")
+    text = text.replace("object the object", "the object")
+    text = text.replace("the the", "the")
+    return text
+
 def prepare_prompt(sample, verbose=False):
     image_paths = sample['images']
     question_text = sample["user_message"][0]["content"][-1]["text"]
     question = question_text
-    context = None
+    # context = None
 
-    if "Task:" in question_text:
-        parts = question_text.split("Task:")
-        context = parts[0].strip()
-        question = parts[1].strip()
+    # if "Task:" in question_text:
+    #     parts = question_text.split("Task:")
+    #     context = parts[0].strip()
+    #     question = parts[1].strip()
 
     question_objects = get_objects(question)
-    dict_objects = objects_to_dict(question_objects)
-    colors = ["red", "blue", "black", "white"]
-    images = [draw_circle(image_paths[image_key], image_key, dict_objects, colors=colors).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_key in image_paths.keys()]
+    colors = ["red", "blue", "black", "white", "green", "yellow", "grey", "orange"]
+    assert len(question_objects) <= len(colors)
+    circles = list(zip(question_objects, colors))
+    images = [draw_circle(image_paths[image_key], image_key, circles).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_key in image_paths.keys()]
     
     if verbose:
         image_viz = construct_for_viz(copy.deepcopy(image_paths), images)
         vizualize_frames(image_viz)
-        print('objects:', dict_objects)
+        print('circles:', circles)
 
-    for object, color in zip(question_objects, colors[:len(dict_objects)]):
-        question = question.replace(object, f"the object marked with {color} circle")
-        question = question.replace("object the object", "the object")
+    for object, color in circles:
+        question = verbalize_obj_ref(question, object, color)
 
-        if context:
-            context = context.replace(object, f"the object marked with {color} circle")
-            context = context.replace("object the object", "the object")
+        # if context:
+        #     context = verbalize_obj_ref(context, object, color)
     
     prompt = question
 
-    if context:
-        prompt = f"{context}\nTask:\n{question}"
+    # if context:
+    #     prompt = f"{context}\nTask:\n{question}"
 
     sample["user_message"][0]["content"][-1]["text"] = prompt
     sample["prompt"] = prompt
@@ -291,15 +355,29 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
     else:
         return _eval_on_dataset(test_set)
 
+N_TOKENS_TO_MASK_AFTER_EOU = 5
+
 class GVQADataCollator:
     def __init__(self, processor, chat_template="tagged"):
         self.processor = processor
         self.image_token_id = processor.tokenizer.additional_special_tokens_ids[
             processor.tokenizer.additional_special_tokens.index("<image>")
         ]
+        self.end_of_utterance_id = processor.tokenizer.additional_special_tokens_ids[
+            processor.tokenizer.additional_special_tokens.index("<end_of_utterance>")
+        ]
         self.chat_template = processor.chat_template
         if chat_template == 'tagged':
             self.chat_template = TAGGED_CHAT_TEMPLATE
+
+    def _build_chat_template_mask(self, input_ids):
+        batch_size, seq_length = input_ids.size()
+        first_end_of_utterance_ids = (input_ids == self.end_of_utterance_id).nonzero()[::2, 1] +  N_TOKENS_TO_MASK_AFTER_EOU
+        mask_range = torch.arange(seq_length).unsqueeze(0).expand(batch_size, seq_length)
+        mask = mask_range < first_end_of_utterance_ids.unsqueeze(-1)
+        # masking the last <EOU> token
+        mask[:, -1] = True
+        return mask
 
     def __call__(self, examples):
         texts = []
@@ -321,7 +399,9 @@ class GVQADataCollator:
 
         batch = self.processor(text=texts, images=images, return_tensors="pt", padding=True)
         labels = batch["input_ids"].clone()
-        labels[labels == self.processor.tokenizer.pad_token_id] = self.image_token_id
+        # added user message masking 
+        labels_mask = self._build_chat_template_mask(batch["input_ids"])
+        labels[labels_mask] = self.image_token_id
         batch["labels"] = labels
 
         return batch

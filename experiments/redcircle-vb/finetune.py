@@ -4,7 +4,7 @@ import pathlib
 from transformers import TrainingArguments, Trainer
 from datasets import load_dataset
 
-from modeling import process_dataset, produce_idefics_dataset, GVQADataCollator, load_model
+from modeling import process_dataset, produce_idefics_dataset, GVQADataCollator, load_model, prepare_object_detection_dataset
 
 MNT_POINT = "/mnt/u14157_ic_nlp_001_files_nfs"
 
@@ -25,10 +25,11 @@ wandb.init(
 wandb_name=wandb.run.name
 
 if __name__ == "__main__":
+    raw_train_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/v1_1_train_nus.json"
     train_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/v1_1_train_nus_ext_converted.json"
-    test_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/drivelm/challenge/test_eval.json"
-    idefics_train_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/data/nuscenes/train_idefics_redcircle_vb_chain.json"
-    checkpoint_dir = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/models/idefics2-redcircle-vb-chain"
+    train_od_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/data/nuscenes/v1_1_train_nus_od.json"
+    idefics_train_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/data/nuscenes/train_idefics_redcircle_vb_chain_od.json"
+    checkpoint_dir = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/models/idefics2-redcircle-vb-chain-od"
     model_dir = "HuggingFaceM4/idefics2-8b"
     
     processor = AutoProcessor.from_pretrained(
@@ -37,15 +38,17 @@ if __name__ == "__main__":
     )
 
     model = load_model(model_dir, eval_mode=False, use_lora=USE_LORA, use_qlora=USE_QLORA, device=DEVICE)
-    train_dataset = process_dataset(train_data_path, apply_context="chain")
-    train_idefics_dataset = produce_idefics_dataset(train_dataset, output_path=idefics_train_data_path)
+    train_dataset = process_dataset(train_data_path)
+    train_od_dataset = prepare_object_detection_dataset(raw_train_data_path, output_path=train_od_data_path)
+    train_dataset = train_dataset + train_od_dataset
+    train_idefics_dataset = produce_idefics_dataset(train_dataset, output_path=idefics_train_data_path, apply_context="chain")
     idefics_dataset = load_dataset('json', data_files=idefics_train_data_path, split=None)
     idefics_dataset = idefics_dataset["train"].train_test_split(test_size=0.025)
 
     training_args = TrainingArguments(
         num_train_epochs=1,
-        per_device_train_batch_size=2,
-        per_device_eval_batch_size=8,
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=4,
         gradient_accumulation_steps=8,
         warmup_steps=50,
         learning_rate=1e-4,
@@ -58,7 +61,8 @@ if __name__ == "__main__":
         eval_steps=100,
         fp16=True,
         remove_unused_columns=False,
-        report_to="wandb"
+        report_to="wandb",
+        save_total_limit=2
     )
 
     data_collator = GVQADataCollator(processor)
