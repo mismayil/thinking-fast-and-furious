@@ -10,17 +10,20 @@ import torch
 from peft import LoraConfig
 import random 
 from collections import defaultdict
+from transformers import AutoProcessor
 
 MNT_POINT = "/mnt/u14157_ic_nlp_001_files_nfs"
 
 if not pathlib.Path(MNT_POINT).exists():
     MNT_POINT = "/mnt"
 
-CACHE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/.cache/huggingface"
+# CACHE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/.cache/huggingface"
+CACHE_DIR = "/home/azureuser/.cache/huggingface"
 os.environ["HF_HOME"] = CACHE_DIR
 
-DEVICE = "cuda:0"
-IMAGE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/samples"
+DEVICE = "cuda"
+# IMAGE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/samples"
+IMAGE_DIR = "/home/azureuser/tff-data/nuscenes/samples"
 IMAGE_PATH_PREFIX = '../nuscenes/samples'
 IMAGE_SRC_X, IMAGE_SRC_Y = 1600, 900
 IMAGE_TGT_X, IMAGE_TGT_Y = int(IMAGE_SRC_X / 2.5), int(IMAGE_SRC_Y / 2.5)
@@ -217,7 +220,7 @@ def produce_idefics_dataset(samples, output_path=None, apply_context=None, apply
     return idefics_samples
 
 def get_objects(text):
-    return list(set(re.findall(r'<[^>]*>', text)))
+    return list(set(re.findall(r'<[^>]+,[^>]+,[^>]+,[^>]+>', text)))
 
 def parse_object_ref(object_ref):
     refs = object_ref.strip('<>').split(',')
@@ -264,16 +267,17 @@ def verbalize_obj_ref(text, object, color):
     text = text.replace("the the", "the")
     return text
 
-def prepare_prompt(sample, verbose=False):
+def prepare_prompt(sample, verbose=False, verbalize_refs=True, apply_redcircle_only_to_question=False):
     image_paths = sample['images']
     question_text = sample["user_message"][0]["content"][-1]["text"]
     question = question_text
-    # context = None
+    context = None
 
-    # if "Task:" in question_text:
-    #     parts = question_text.split("Task:")
-    #     context = parts[0].strip()
-    #     question = parts[1].strip()
+    if apply_redcircle_only_to_question:
+        if "Task:" in question_text:
+            parts = question_text.split("Task:")
+            context = parts[0].strip()
+            question = parts[1].strip()
 
     question_objects = get_objects(question)
     colors = ["red", "blue", "black", "white", "green", "yellow", "grey", "orange"]
@@ -286,16 +290,17 @@ def prepare_prompt(sample, verbose=False):
         vizualize_frames(image_viz)
         print('circles:', circles)
 
-    for object, color in circles:
-        question = verbalize_obj_ref(question, object, color)
+    if verbalize_refs:
+        for object, color in circles:
+            question = verbalize_obj_ref(question, object, color)
 
-        # if context:
-        #     context = verbalize_obj_ref(context, object, color)
+        if context:
+            context = verbalize_obj_ref(context, object, color)
     
     prompt = question
 
-    # if context:
-    #     prompt = f"{context}\nTask:\n{question}"
+    if context:
+        prompt = f"{context}\nTask:\n{question}"
 
     sample["user_message"][0]["content"][-1]["text"] = prompt
     sample["prompt"] = prompt
@@ -306,19 +311,19 @@ def batched(lst, size=4):
     for i in range(0, len(lst), size):
         yield lst[i:i+size]
 
-def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template=TAGGED_CHAT_TEMPLATE, apply_context=None):
+def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template=TAGGED_CHAT_TEMPLATE, 
+               apply_context=None, verbalize_refs=True, apply_redcircle_only_to_question=False):
     def _eval_on_dataset(dataset):
         predictions = []
         
         for idefics_batch in tqdm(batched(dataset, batch_size), total=len(dataset)//batch_size):
-            eval_batch = [prepare_prompt(sample, verbose=verbose) for sample in idefics_batch]
+            eval_batch = [prepare_prompt(sample, verbose=verbose, verbalize_refs=verbalize_refs, apply_redcircle_only_to_question=apply_redcircle_only_to_question) for sample in idefics_batch]
             batch_messages = [sample["user_message"] for sample in idefics_batch]
             batch_images = [b[1] for b in eval_batch]
             batch_texts = processor.apply_chat_template(batch_messages, add_generation_prompt=False, chat_template=chat_template)
             inputs = processor(text=batch_texts, images=batch_images, return_tensors="pt", padding=True)
             inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         
-            # Generate
             generated_ids = model.generate(**inputs, max_new_tokens=256)
             generated_texts = processor.batch_decode(generated_ids, skip_special_tokens=True)
 
@@ -358,7 +363,7 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
 N_TOKENS_TO_MASK_AFTER_EOU = 5
 
 class GVQADataCollator:
-    def __init__(self, processor, chat_template="tagged"):
+    def __init__(self, processor, chat_template="tagged", verbose=False, verbalize_refs=True, apply_redcircle_only_to_question=False):
         self.processor = processor
         self.image_token_id = processor.tokenizer.additional_special_tokens_ids[
             processor.tokenizer.additional_special_tokens.index("<image>")
@@ -369,6 +374,9 @@ class GVQADataCollator:
         self.chat_template = processor.chat_template
         if chat_template == 'tagged':
             self.chat_template = TAGGED_CHAT_TEMPLATE
+        self.verbose = verbose
+        self.verbalize_refs = verbalize_refs
+        self.apply_redcircle_only_to_question = apply_redcircle_only_to_question
 
     def _build_chat_template_mask(self, input_ids):
         batch_size, seq_length = input_ids.size()
@@ -384,7 +392,7 @@ class GVQADataCollator:
         images = []
         
         for example in examples:
-            prompt, sample_images = prepare_prompt(example)
+            prompt, sample_images = prepare_prompt(example, verbose=self.verbose, verbalize_refs=self.verbalize_refs, apply_redcircle_only_to_question=self.apply_redcircle_only_to_question)
             answer_text = example["answer"]
             answer_message = {
                 "role": "assistant",
@@ -406,7 +414,13 @@ class GVQADataCollator:
 
         return batch
 
-def load_model(model_path, eval_mode=False, use_lora=False, use_qlora=False, device="cuda:0"):
+def load_processor(model_dir):
+    return AutoProcessor.from_pretrained(
+        model_dir,
+        do_image_splitting=False
+    )
+
+def load_model(model_path, eval_mode=False, use_lora=False, use_qlora=False, device="cuda"):
     model = None
     
     if use_qlora or use_lora:
@@ -428,7 +442,8 @@ def load_model(model_path, eval_mode=False, use_lora=False, use_qlora=False, dev
             model_path,
             torch_dtype=torch.float16,
             quantization_config=bnb_config if use_qlora else None,
-            cache_dir=CACHE_DIR
+            cache_dir=CACHE_DIR,
+            device_map="auto"
         )
         if not eval_mode:
             model.add_adapter(lora_config)
