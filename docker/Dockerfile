@@ -91,7 +91,9 @@ RUN ${CONDA} run -n ${CONDA_ENV} pip install ipykernel ipywidgets
 COPY --chown=${USER_NAME} ./docker/entrypoint.sh .
 RUN chmod +x ./entrypoint.sh
 
-USER root
+# USER root
+
+USER ${USER_NAME}
 
 # ENTRYPOINT ["./entrypoint.sh"]
 # ENTRYPOINT [ "sleep", "infinity" ]
