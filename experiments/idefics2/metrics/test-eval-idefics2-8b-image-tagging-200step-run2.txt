@@ -2,4 +2,4 @@ accuracy score:  1.0
 chatgpt score:  55.55555555555556
 match score:  40.625
 language score:  {'val/Bleu_1': 0.7075718015656559, 'val/Bleu_2': 0.6564290334727079, 'val/Bleu_3': 0.6053105334861522, 'val/Bleu_4': 0.5527295217899625, 'val/ROUGE_L': 0.7746176555462548, 'val/CIDEr': 0.15725343485473456}
-final score:  0.5981957703295788
+final score:  0.5981957703295788 
