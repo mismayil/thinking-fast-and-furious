@@ -48,7 +48,7 @@ class GVQADataCollator:
         mask_range = torch.arange(seq_length).unsqueeze(0).expand(batch_size, seq_length)
         mask = mask_range < first_end_of_utterance_ids.unsqueeze(-1)
         # masking the last <EOU> token
-        mask[:, -1] = True
+        #mask[:, -1] = True
         return mask
 
     def __call__(self, examples):
