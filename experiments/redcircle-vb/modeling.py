@@ -133,7 +133,7 @@ def create_object_detection_questions(ko_id, key_object):
 
     return obj_questions
     
-def prepare_object_detection_dataset(data_path, output_path=None):
+def prepare_object_detection_dataset(data_path, output_path=None, question_type="auxiliary"):
     with open(data_path, "r") as f:
         dataset = json.load(f)
     samples = []
@@ -147,7 +147,7 @@ def prepare_object_detection_dataset(data_path, output_path=None):
                     sample_id = f"{scene_id}_{frame_id}_{object_id}_{obj_q['qa_id']}"
                     sample = {
                         "id": sample_id,
-                        "question_type": "perception",
+                        "question_type": question_type,
                         "question_text": obj_q["question"],
                         "images": image_paths,
                         "answer": obj_q["answer"]
@@ -170,6 +170,7 @@ def add_context_to_idefics_dataset(idefics_dataset, apply_context=None, apply_on
         return idefics_dataset
     
     previous_stage_map = {
+        "auxiliary": None,
         "perception": None,
         "prediction": "perception",
         "planning": "prediction",
@@ -267,30 +268,36 @@ def verbalize_obj_ref(text, object, color):
     text = text.replace("the the", "the")
     return text
 
-def prepare_prompt(sample, verbose=False, verbalize_refs=True, apply_redcircle_only_to_question=False):
+def load_and_resize_images(example):
+    sample_images = [load_image(image_path).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_path in example['images'].values()]
+    return sample_images
+
+def prepare_prompt(sample, verbose=False, verbalize_refs=True, apply_redcircle=True, apply_redcircle_only_to_question=False):
     image_paths = sample['images']
     question_text = sample["user_message"][0]["content"][-1]["text"]
     question = question_text
     context = None
 
-    if apply_redcircle_only_to_question:
+    if apply_redcircle and apply_redcircle_only_to_question:
         if "Task:" in question_text:
             parts = question_text.split("Task:")
             context = parts[0].strip()
             question = parts[1].strip()
 
-    question_objects = get_objects(question)
-    colors = ["red", "blue", "black", "white", "green", "yellow", "grey", "orange"]
-    assert len(question_objects) <= len(colors)
-    circles = list(zip(question_objects, colors))
-    images = [draw_circle(image_paths[image_key], image_key, circles).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_key in image_paths.keys()]
+    if apply_redcircle:
+        question_objects = get_objects(question)
+        colors = ["red", "blue", "black", "white", "green", "yellow", "grey", "orange"]
+        assert len(question_objects) <= len(colors)
+        circles = list(zip(question_objects, colors))
+        images = [draw_circle(image_paths[image_key], image_key, circles).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_key in image_paths.keys()]
+    else:
+        images = [load_image(image_path).resize((IMAGE_TGT_X, IMAGE_TGT_Y)) for image_path in image_paths.values()]
     
     if verbose:
         image_viz = construct_for_viz(copy.deepcopy(image_paths), images)
         vizualize_frames(image_viz)
-        print('circles:', circles)
 
-    if verbalize_refs:
+    if apply_redcircle and verbalize_refs:
         for object, color in circles:
             question = verbalize_obj_ref(question, object, color)
 
@@ -312,12 +319,12 @@ def batched(lst, size=4):
         yield lst[i:i+size]
 
 def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template=TAGGED_CHAT_TEMPLATE, 
-               apply_context=None, verbalize_refs=True, apply_redcircle_only_to_question=False):
+               apply_context=None, verbalize_refs=True, apply_redcircle=True, apply_redcircle_only_to_question=False):
     def _eval_on_dataset(dataset):
         predictions = []
         
         for idefics_batch in tqdm(batched(dataset, batch_size), total=len(dataset)//batch_size):
-            eval_batch = [prepare_prompt(sample, verbose=verbose, verbalize_refs=verbalize_refs, apply_redcircle_only_to_question=apply_redcircle_only_to_question) for sample in idefics_batch]
+            eval_batch = [prepare_prompt(sample, verbose=verbose, verbalize_refs=verbalize_refs, apply_redcircle=apply_redcircle, apply_redcircle_only_to_question=apply_redcircle_only_to_question) for sample in idefics_batch]
             batch_messages = [sample["user_message"] for sample in idefics_batch]
             batch_images = [b[1] for b in eval_batch]
             batch_texts = processor.apply_chat_template(batch_messages, add_generation_prompt=False, chat_template=chat_template)
@@ -343,6 +350,7 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
         return predictions
 
     if apply_context == "chain":
+        auxiliary_set = [sample for sample in test_set if sample["question_type"] == "auxiliary"]
         perception_set = [sample for sample in test_set if sample["question_type"] == "perception"]
         prediction_set = [sample for sample in test_set if sample["question_type"] == "prediction"]
         planning_set = [sample for sample in test_set if sample["question_type"] == "planning"]
@@ -351,7 +359,7 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
         previous_predictions = []
         predictions = []
 
-        for stage, dataset in [("perception", perception_set), ("prediction", prediction_set), ("planning", planning_set), ("behavior", behavior_set)]:
+        for stage, dataset in [("auxiliary", auxiliary_set), ("perception", perception_set), ("prediction", prediction_set), ("planning", planning_set), ("behavior", behavior_set)]:
             add_context_to_idefics_dataset(previous_predictions + dataset, apply_context=apply_context, apply_on_stages=stage)
             previous_predictions = _eval_on_dataset(dataset)
             predictions.extend(previous_predictions)
@@ -363,7 +371,8 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
 N_TOKENS_TO_MASK_AFTER_EOU = 5
 
 class GVQADataCollator:
-    def __init__(self, processor, chat_template="tagged", verbose=False, verbalize_refs=True, apply_redcircle_only_to_question=False):
+    def __init__(self, processor, chat_template="tagged", verbose=False, verbalize_refs=True, 
+                 apply_redcircle=True, apply_redcircle_only_to_question=False):
         self.processor = processor
         self.image_token_id = processor.tokenizer.additional_special_tokens_ids[
             processor.tokenizer.additional_special_tokens.index("<image>")
@@ -376,6 +385,7 @@ class GVQADataCollator:
             self.chat_template = TAGGED_CHAT_TEMPLATE
         self.verbose = verbose
         self.verbalize_refs = verbalize_refs
+        self.apply_redcircle = apply_redcircle
         self.apply_redcircle_only_to_question = apply_redcircle_only_to_question
 
     def _build_chat_template_mask(self, input_ids):
@@ -392,7 +402,7 @@ class GVQADataCollator:
         images = []
         
         for example in examples:
-            prompt, sample_images = prepare_prompt(example, verbose=self.verbose, verbalize_refs=self.verbalize_refs, apply_redcircle_only_to_question=self.apply_redcircle_only_to_question)
+            prompt, sample_images = prepare_prompt(example, verbose=self.verbose, verbalize_refs=self.verbalize_refs, apply_redcircle=self.apply_redcircle, apply_redcircle_only_to_question=self.apply_redcircle_only_to_question)
             answer_text = example["answer"]
             answer_message = {
                 "role": "assistant",
