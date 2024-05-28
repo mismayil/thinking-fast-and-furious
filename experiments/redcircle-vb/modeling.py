@@ -17,13 +17,13 @@ MNT_POINT = "/mnt/u14157_ic_nlp_001_files_nfs"
 if not pathlib.Path(MNT_POINT).exists():
     MNT_POINT = "/mnt"
 
-# CACHE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/.cache/huggingface"
-CACHE_DIR = "/home/azureuser/.cache/huggingface"
+CACHE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/.cache/huggingface"
+# CACHE_DIR = "/home/azureuser/.cache/huggingface"
 os.environ["HF_HOME"] = CACHE_DIR
 
 DEVICE = "cuda"
-# IMAGE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/samples"
-IMAGE_DIR = "/home/azureuser/tff-data/nuscenes/samples"
+IMAGE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/samples"
+# IMAGE_DIR = "/home/azureuser/tff-data/nuscenes/samples"
 IMAGE_PATH_PREFIX = '../nuscenes/samples'
 IMAGE_SRC_X, IMAGE_SRC_Y = 1600, 900
 IMAGE_TGT_X, IMAGE_TGT_Y = int(IMAGE_SRC_X / 2.5), int(IMAGE_SRC_Y / 2.5)
@@ -368,11 +368,11 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
     else:
         return _eval_on_dataset(test_set)
 
-N_TOKENS_TO_MASK_AFTER_EOU = 5
+N_TOKENS_TO_MASK_AFTER_EOU = 6
 
 class GVQADataCollator:
     def __init__(self, processor, chat_template="tagged", verbose=False, verbalize_refs=True, 
-                 apply_redcircle=True, apply_redcircle_only_to_question=False):
+                 apply_redcircle=True, apply_redcircle_only_to_question=False, apply_input_masking=True):
         self.processor = processor
         self.image_token_id = processor.tokenizer.additional_special_tokens_ids[
             processor.tokenizer.additional_special_tokens.index("<image>")
@@ -387,14 +387,13 @@ class GVQADataCollator:
         self.verbalize_refs = verbalize_refs
         self.apply_redcircle = apply_redcircle
         self.apply_redcircle_only_to_question = apply_redcircle_only_to_question
+        self.apply_input_masking = apply_input_masking
 
     def _build_chat_template_mask(self, input_ids):
         batch_size, seq_length = input_ids.size()
         first_end_of_utterance_ids = (input_ids == self.end_of_utterance_id).nonzero()[::2, 1] +  N_TOKENS_TO_MASK_AFTER_EOU
         mask_range = torch.arange(seq_length).unsqueeze(0).expand(batch_size, seq_length)
         mask = mask_range < first_end_of_utterance_ids.unsqueeze(-1)
-        # masking the last <EOU> token
-        mask[:, -1] = True
         return mask
 
     def __call__(self, examples):
@@ -417,9 +416,13 @@ class GVQADataCollator:
 
         batch = self.processor(text=texts, images=images, return_tensors="pt", padding=True)
         labels = batch["input_ids"].clone()
-        # added user message masking 
-        labels_mask = self._build_chat_template_mask(batch["input_ids"])
-        labels[labels_mask] = self.image_token_id
+
+        if self.apply_input_masking:
+            labels_mask = self._build_chat_template_mask(batch["input_ids"])
+            labels[labels_mask] = self.image_token_id
+        else:
+            labels[labels == self.processor.tokenizer.pad_token_id] = self.image_token_id
+
         batch["labels"] = labels
 
         return batch
