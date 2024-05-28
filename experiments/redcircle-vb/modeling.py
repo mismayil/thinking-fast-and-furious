@@ -323,11 +323,11 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
     def _eval_on_dataset(dataset):
         predictions = []
         
-        for idefics_batch in tqdm(batched(dataset, batch_size), total=len(dataset)//batch_size):
+        for idefics_batch in tqdm(batched(dataset, batch_size), total=len(dataset)//batch_size+1):
             eval_batch = [prepare_prompt(sample, verbose=verbose, verbalize_refs=verbalize_refs, apply_redcircle=apply_redcircle, apply_redcircle_only_to_question=apply_redcircle_only_to_question) for sample in idefics_batch]
             batch_messages = [sample["user_message"] for sample in idefics_batch]
             batch_images = [b[1] for b in eval_batch]
-            batch_texts = processor.apply_chat_template(batch_messages, add_generation_prompt=False, chat_template=chat_template)
+            batch_texts = processor.apply_chat_template(batch_messages, add_generation_prompt=True, chat_template=chat_template)
             inputs = processor(text=batch_texts, images=batch_images, return_tensors="pt", padding=True)
             inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         
