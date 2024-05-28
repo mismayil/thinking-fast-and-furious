@@ -172,6 +172,8 @@ cython_debug/
 /experiments/redcircle/models/*
 /experiments/redcircle/wandb/*
 
+/baseline/experiments/eea/data/nuscenes/train_v1_with_od_all_idefics_jessica.json
+
 # Logs
 wandb
 
