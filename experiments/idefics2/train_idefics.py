@@ -48,7 +48,7 @@ def main():
     processor = AutoProcessor.from_pretrained(
     "HuggingFaceM4/idefics2-8b",
     do_image_splitting=False
-)
+    )
 
     lora_config = LoraConfig(
         r=8,
