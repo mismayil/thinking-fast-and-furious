@@ -18,12 +18,8 @@ if not pathlib.Path(MNT_POINT).exists():
     MNT_POINT = "/mnt"
 
 CACHE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/.cache/huggingface"
-# CACHE_DIR = "/home/azureuser/.cache/huggingface"
-os.environ["HF_HOME"] = CACHE_DIR
-
 DEVICE = "cuda"
 IMAGE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/samples"
-# IMAGE_DIR = "/home/azureuser/tff-data/nuscenes/samples"
 IMAGE_PATH_PREFIX = '../nuscenes/samples'
 IMAGE_SRC_X, IMAGE_SRC_Y = 1600, 900
 IMAGE_TGT_X, IMAGE_TGT_Y = int(IMAGE_SRC_X / 2.5), int(IMAGE_SRC_Y / 2.5)
@@ -133,14 +129,14 @@ def create_object_detection_questions(ko_id, key_object):
 
     return obj_questions
     
-def prepare_object_detection_dataset(data_path, output_path=None, question_type="auxiliary"):
+def prepare_object_detection_dataset(data_path, output_path=None, question_type="auxiliary", image_dir=IMAGE_DIR):
     with open(data_path, "r") as f:
         dataset = json.load(f)
     samples = []
     
     for scene_id, scene in tqdm(dataset.items(), desc="Preparing object detection dataset"):
         for frame_id, frame in scene['key_frames'].items():
-            image_paths = {view_name: view_path.replace(IMAGE_PATH_PREFIX, IMAGE_DIR) for view_name, view_path in frame['image_paths'].items()}
+            image_paths = {view_name: view_path.replace(IMAGE_PATH_PREFIX, image_dir) for view_name, view_path in frame['image_paths'].items()}
             for object_id, (ko_id, key_object) in enumerate(frame['key_object_infos'].items()):
                 obj_questions = create_object_detection_questions(ko_id, key_object)
                 for obj_q in obj_questions:
@@ -372,7 +368,7 @@ N_TOKENS_TO_MASK_AFTER_EOU = 6
 
 class GVQADataCollator:
     def __init__(self, processor, chat_template="tagged", verbose=False, verbalize_refs=True, 
-                 apply_redcircle=True, apply_redcircle_only_to_question=False, apply_input_masking=True):
+                 apply_redcircle=True, apply_redcircle_only_to_question=False, apply_input_masking=False):
         self.processor = processor
         self.image_token_id = processor.tokenizer.additional_special_tokens_ids[
             processor.tokenizer.additional_special_tokens.index("<image>")
@@ -433,7 +429,7 @@ def load_processor(model_dir):
         do_image_splitting=False
     )
 
-def load_model(model_path, eval_mode=False, use_lora=False, use_qlora=False, device="cuda"):
+def load_model(model_path, eval_mode=False, use_lora=False, use_qlora=False, device="cuda", cache_dir=CACHE_DIR):
     model = None
     
     if use_qlora or use_lora:
@@ -455,7 +451,7 @@ def load_model(model_path, eval_mode=False, use_lora=False, use_qlora=False, dev
             model_path,
             torch_dtype=torch.float16,
             quantization_config=bnb_config if use_qlora else None,
-            cache_dir=CACHE_DIR,
+            cache_dir=cache_dir,
             device_map="auto"
         )
         if not eval_mode:
@@ -466,7 +462,7 @@ def load_model(model_path, eval_mode=False, use_lora=False, use_qlora=False, dev
             model_path,
             torch_dtype=torch.float16,
             _attn_implementation="flash_attention_2", # Only available on A100 or H100
-            cache_dir=CACHE_DIR 
+            cache_dir=cache_dir 
         ).to(device)
     
     return model
