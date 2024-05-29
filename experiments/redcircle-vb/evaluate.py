@@ -30,12 +30,12 @@ if __name__ == "__main__":
         do_image_splitting=False
     )
     
-    model = load_model(checkpoint_dir, use_lora=USE_LORA, use_qlora=USE_QLORA, device=DEVICE)
+    model = load_model(checkpoint_dir, eval_mode=True, use_lora=USE_LORA, use_qlora=USE_QLORA, device=DEVICE)
     test_dataset = process_dataset(test_data_path, image_dir=IMAGE_DIR)
 
     test_idefics_dataset = produce_idefics_dataset(test_dataset)
 
-    predictions = eval_model(model, test_idefics_dataset, processor, eval_mode=True, batch_size=12, apply_context=None, apply_redcircle=False, verbalize_refs=False)
+    predictions = eval_model(model, test_idefics_dataset, processor, batch_size=12, apply_context=None, apply_redcircle=False, verbalize_refs=False)
 
     # path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/outputs/v1_1-val-idefics2-8b-fine-tuned-redcircle-vb-1000step.json"
     path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/idefics2/outputs/test-eval-idefics2-8b-fine-tuned-od-1000step.json"
