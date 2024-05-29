@@ -3,7 +3,7 @@ from transformers import TrainingArguments, Trainer
 from datasets import load_dataset
 import os
 from accelerate import Accelerator
-import argparse
+import random
 
 from modeling import process_dataset, produce_idefics_dataset, GVQADataCollator, load_model, prepare_object_detection_dataset, load_processor
 
@@ -21,11 +21,11 @@ USE_QLORA = True
 # os.environ["WANDB_API_KEY"] = wandb_key
 os.environ["WANDB_PROJECT"] = "thinking-fast-and-furious"
 HOME = "/home/azureuser"
-IMAGE_DIR = f"${HOME}/tff-data/nuscenes/samples"
+IMAGE_DIR = f"{HOME}/tff-data/nuscenes/samples"
 # IMAGE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/train/nuscenes/samples"
 
 # CACHE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/.cache/huggingface"
-CACHE_DIR = f"${HOME}/.cache/huggingface"
+CACHE_DIR = f"{HOME}/.cache/huggingface"
 
 if __name__ == "__main__":
     raw_train_data_path = f"{HOME}/tff-data/nuscenes/v1_1_train_nus.json"
@@ -45,6 +45,7 @@ if __name__ == "__main__":
     train_dataset = process_dataset(train_data_path, image_dir=IMAGE_DIR)
     train_od_dataset = prepare_object_detection_dataset(raw_train_data_path, output_path=train_od_data_path, image_dir=IMAGE_DIR)
     train_dataset = train_od_dataset + train_dataset
+    train_dataset = random.sample(train_dataset, len(train_dataset))
     train_idefics_dataset = produce_idefics_dataset(train_dataset, output_path=idefics_train_data_path, apply_context="chain")
     idefics_dataset = load_dataset('json', data_files=idefics_train_data_path, split=None)
     idefics_dataset = idefics_dataset["train"].train_test_split(test_size=0.025)
@@ -53,7 +54,7 @@ if __name__ == "__main__":
         num_train_epochs=1,
         per_device_train_batch_size=2,
         per_device_eval_batch_size=8,
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=8,
         warmup_steps=50,
         learning_rate=1e-4,
         weight_decay=0.01,
@@ -67,7 +68,7 @@ if __name__ == "__main__":
         remove_unused_columns=False,
         report_to="wandb",
         save_total_limit=2,
-        run_name="idefics2-8b-chain-od"
+        run_name="idefics2-8b-redcircle-chain-od"
     )
 
     data_collator = GVQADataCollator(processor, apply_redcircle=True, apply_input_masking=False)
