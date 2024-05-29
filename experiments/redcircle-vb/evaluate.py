@@ -21,7 +21,8 @@ if __name__ == "__main__":
     test_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/drivelm/challenge/test_eval.json"
     # idefics_test_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/val/nuscenes/v1_1_val_nus_q_only_idefics2.json"
     # checkpoint_dir = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/models/idefics2-redcircle-vb/checkpoint-1000"
-    checkpoint_dir = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/models/idefics2-8b-redcircle-chain-od/checkpoint-2600"
+    checkpoint_dir = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/models/idefics2-8b-od/checkpoint-1000"
+    # checkpoint_dir = "HuggingFaceM4/idefics2-8b"
     model_dir = "HuggingFaceM4/idefics2-8b"
     
     processor = AutoProcessor.from_pretrained(
@@ -29,14 +30,14 @@ if __name__ == "__main__":
         do_image_splitting=False
     )
     
-    model = load_model(checkpoint_dir, eval_mode=True, use_lora=USE_LORA, use_qlora=USE_QLORA, device=DEVICE)
+    model = load_model(checkpoint_dir, use_lora=USE_LORA, use_qlora=USE_QLORA, device=DEVICE)
     test_dataset = process_dataset(test_data_path, image_dir=IMAGE_DIR)
 
     test_idefics_dataset = produce_idefics_dataset(test_dataset)
 
-    predictions = eval_model(model, test_idefics_dataset, processor, batch_size=4, apply_context="chain", apply_redcircle=True, verbalize_refs=False)
+    predictions = eval_model(model, test_idefics_dataset, processor, eval_mode=True, batch_size=12, apply_context=None, apply_redcircle=False, verbalize_refs=False)
 
     # path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/outputs/v1_1-val-idefics2-8b-fine-tuned-redcircle-vb-1000step.json"
-    path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/outputs/test-eval-idefics2-8b-fine-tuned-redcircle-chain-od-inf-pred-2600steps.json"
+    path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/idefics2/outputs/test-eval-idefics2-8b-fine-tuned-od-1000step.json"
     with open(path, "w") as f:
         json.dump(predictions, f, indent=4)
