@@ -326,14 +326,23 @@ def apply_perception_trick(predictions):
         scene_id, frame_id, _ = parse_sample_id(pred["id"])
         relevant_predictions = prediction_map[f"{scene_id}_{frame_id}"]
         ref_objects = set()
-
-        for relevant_pred in relevant_predictions:
-            ref_objects.update()
-    
+        answer = pred["answer"]
+        id_prefix = "The IDs of these objects are"
+        
+        if id_prefix in answer:
+            for relevant_pred in relevant_predictions:
+                objects = get_objects(relevant_pred["question_text"])
+                ref_objects.update(objects)
+            
+            ref_objects = sorted(ref_objects, key=lambda o: parse_object_ref(o)[0])
+            answer_prefix, _ = answer.split(id_prefix)
+            ref_objects[-1] = "and " + ref_objects[-1]
+            ref_objects_txt = ", ".join(ref_objects)
+            pred["answer"] = f"{answer_prefix}{id_prefix} {ref_objects_txt}."    
     return predictions
+
 def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template=TAGGED_CHAT_TEMPLATE, 
-               apply_context=None, verbalize_refs=True, apply_redcircle=True, apply_redcircle_only_to_question=False, 
-               apply_perception_trick=False):
+               apply_context=None, verbalize_refs=True, apply_redcircle=True, apply_redcircle_only_to_question=False):
     def _eval_on_dataset(dataset):
         predictions = []
         
