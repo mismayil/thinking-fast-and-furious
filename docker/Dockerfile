@@ -93,7 +93,7 @@ RUN chmod +x ./entrypoint.sh
 
 USER root
 
-USER ${USER_NAME}
+# USER ${USER_NAME}
 
 # ENTRYPOINT ["./entrypoint.sh"]
 # ENTRYPOINT [ "sleep", "infinity" ]

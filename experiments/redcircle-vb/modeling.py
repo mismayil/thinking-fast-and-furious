@@ -314,8 +314,26 @@ def batched(lst, size=4):
     for i in range(0, len(lst), size):
         yield lst[i:i+size]
 
+def apply_perception_trick(predictions):
+    perception_predictions = [pred for pred in predictions if pred["question_type"] == "perception" and "what are the important objects in the current scene?" in pred["question_text"].lower()]
+    prediction_map = defaultdict(list)
+
+    for pred in tqdm(predictions, desc="Creating prediction map"):
+        scene_id, frame_id, _ = parse_sample_id(pred["id"])
+        prediction_map[f"{scene_id}_{frame_id}"].append(pred)
+    
+    for pred in tqdm(perception_predictions, desc="Applying perception trick"):
+        scene_id, frame_id, _ = parse_sample_id(pred["id"])
+        relevant_predictions = prediction_map[f"{scene_id}_{frame_id}"]
+        ref_objects = set()
+
+        for relevant_pred in relevant_predictions:
+            ref_objects.update()
+    
+    return predictions
 def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template=TAGGED_CHAT_TEMPLATE, 
-               apply_context=None, verbalize_refs=True, apply_redcircle=True, apply_redcircle_only_to_question=False):
+               apply_context=None, verbalize_refs=True, apply_redcircle=True, apply_redcircle_only_to_question=False, 
+               apply_perception_trick=False):
     def _eval_on_dataset(dataset):
         predictions = []
         

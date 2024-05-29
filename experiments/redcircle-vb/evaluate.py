@@ -10,7 +10,7 @@ if not pathlib.Path(MNT_POINT).exists():
 
 os.environ["HF_HOME"] = f"{MNT_POINT}/nlpdata1/home/ismayilz/.cache/huggingface"
 
-DEVICE = "cuda:0"
+DEVICE = "cuda"
 USE_LORA = False
 USE_QLORA = True
 # IMAGE_DIR = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/val/nuscenes/samples"
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     test_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/drivelm/challenge/test_eval.json"
     # idefics_test_data_path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/data/val/nuscenes/v1_1_val_nus_q_only_idefics2.json"
     # checkpoint_dir = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/models/idefics2-redcircle-vb/checkpoint-1000"
-    checkpoint_dir = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/models/idefics2-8b-redcircle-vb-chain-od/checkpoint-3500"
+    checkpoint_dir = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/models/idefics2-8b-redcircle-chain-od/checkpoint-2600"
     model_dir = "HuggingFaceM4/idefics2-8b"
     
     processor = AutoProcessor.from_pretrained(
@@ -34,9 +34,9 @@ if __name__ == "__main__":
 
     test_idefics_dataset = produce_idefics_dataset(test_dataset)
 
-    predictions = eval_model(model, test_idefics_dataset, processor, batch_size=4, apply_context="chain", apply_redcircle=True, verbalize_refs=True)
+    predictions = eval_model(model, test_idefics_dataset, processor, batch_size=4, apply_context="chain", apply_redcircle=True, verbalize_refs=False)
 
     # path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/outputs/v1_1-val-idefics2-8b-fine-tuned-redcircle-vb-1000step.json"
-    path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/outputs/test-eval-idefics2-8b-fine-tuned-redcircle-vb-chain-od-inf-pred-3500steps.json"
+    path = f"{MNT_POINT}/nlpdata1/home/ismayilz/cs503-project/thinking-fast-and-furious/experiments/redcircle-vb/outputs/test-eval-idefics2-8b-fine-tuned-redcircle-chain-od-inf-pred-2600steps.json"
     with open(path, "w") as f:
         json.dump(predictions, f, indent=4)
