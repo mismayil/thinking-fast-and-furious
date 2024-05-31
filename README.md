@@ -15,7 +15,7 @@ This repo contains the code for our final project that tackles the [Driving with
     - `submissions`: This folder lists our final submissions (evaluated on the question-only [test set](https://huggingface.co/datasets/OpenDriveLab/DriveLM/blob/main/v1_1_val_nus_q_only.json))
     - `notebooks`: This folder contains various raw experiment and analysis notebooks.
     - `finetune.py`: This script contains the code for fine-tuning the models. It accepts customizable arguments for different fine-tuning experiments. Run `python finetune.py -h` for further information.
-    - `evaluate.py`: This script contains the code for evaluating models on the test sets. It accepts customizable arguments for different fine-tuning experiments. Run `python evaluate.py -h` for further information.
+    - `inference.py`: This script contains the code for evaluating models on the test sets. It accepts customizable arguments for different fine-tuning experiments. Run `python inference.py -h` for further information.
     - `metrics.py`: This file contains our custom metrics code reimplemented based on [challenge metrics](drivelm/challenge/evaluation.py)
     - `report_metrics.sh`: This script is used to report the metric results using the challenge's evaluation suite.
 
@@ -31,13 +31,13 @@ Once the environment is setup, each finetuning experiment can be run using `fine
 python finetune.py -h
 ```
 
-In order to evaluate the model on the test set, run the `evaluate.py` script with appropriate arguments.
+In order to evaluate the model on the test set, run the `inference.py` script with appropriate arguments.
 
 ```
-python evaluate.py -h
+python inference.py -h
 ```
 
-Once the evaluation is done, metrics can be reported using `report_metrics.sh` script. Note that this script requires OpenAI API Key as it uses ChatGPT for evaluation. In addition, the challenge uses the [language-evaluation] repo for other metrics, so it needs to be downloaded and installed as well.
+Once the inference is done, metrics can be reported using `report_metrics.sh` script. Note that this script requires OpenAI API Key as it uses ChatGPT for evaluation. In addition, the challenge uses the [language-evaluation] repo for other metrics, so it needs to be downloaded and installed as well.
 
 ```
 pip install git+https://github.com/bckim92/language-evaluation.git

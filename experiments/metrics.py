@@ -1,11 +1,11 @@
 import re
 import numpy as np
-import evaluate 
+import experiments.inference as inference 
 import argparse
 import json
 from tqdm import tqdm
 
-bleu = evaluate.load("bleu")
+bleu = inference.load("bleu")
 
 def accuracy(preds, gts):
     accuracy_full = np.array(preds) == np.array(gts)
