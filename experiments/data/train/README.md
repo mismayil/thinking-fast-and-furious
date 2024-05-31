@@ -1,0 +1,3 @@
+## Training data
+Training data and images can be downloaded from [here](https://huggingface.co/datasets/OpenDriveLab/DriveLM/blob/main/v1_1_train_nus.json) and [here](https://huggingface.co/datasets/OpenDriveLab/DriveLM/blob/main/drivelm_nus_imgs_train.zip). 
+Note that this is the raw training dataset. According to the [challenge instructions](https://github.com/OpenDriveLab/DriveLM/tree/main/challenge), an extraction and conversion steps should be done on this dataset to prepare it for training. The scripts for these steps are respectively [extract_data.py](../../../drivelm/challenge/extract_data.py) and [convert_data.py](../../../drivelm/challenge/convert_data.py). 

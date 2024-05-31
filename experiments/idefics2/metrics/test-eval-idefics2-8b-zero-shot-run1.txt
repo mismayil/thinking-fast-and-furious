@@ -1,8 +1,0 @@
-evaluation start!
-PTBTokenizer tokenized 736 tokens at 1795.72 tokens per second.
-PTBTokenizer tokenized 40 tokens at 183.50 tokens per second.
-accuracy score:  0.0
-chatgpt score:  27.77777777777778
-match score:  4.625
-language score:  {'val/Bleu_1': 4.214331200008019e-16, 'val/Bleu_2': 1.0881356368386656e-23, 'val/Bleu_3': 3.9122385275598214e-26, 'val/Bleu_4': 2.480412862922023e-27, 'val/ROUGE_L': 0.007903541722770361, 'val/CIDEr': 1.0577149476802062e-17}
-final score:  0.12088801389262914

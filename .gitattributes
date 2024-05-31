@@ -1,2 +1,0 @@
-experiments/redcircle-vb/data/nuscenes/train_idefics_redcircle_vb_chain.json filter=lfs diff=lfs merge=lfs -text
-experiments/redcircle-vb/data/nuscenes/train_idefics_redcircle_vb_chain_od.json filter=lfs diff=lfs merge=lfs -text
