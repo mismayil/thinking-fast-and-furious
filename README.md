@@ -18,3 +18,33 @@ This repo contains the code for our final project that tackles the [Driving with
     - `evaluate.py`: This script contains the code for evaluating models on the test sets. It accepts customizable arguments for different fine-tuning experiments. Run `python evaluate.py -h` for further information.
     - `metrics.py`: This file contains our custom metrics code reimplemented based on [challenge metrics](drivelm/challenge/evaluation.py)
     - `report_metrics.sh`: This script is used to report the metric results using the challenge's evaluation suite.
+
+## Experiments
+In order to reproduce the experiments, first install the required packages. We recommend using python>=3.10.
+```
+pip install -r requirements.txt
+```
+
+Once the environment is setup, each finetuning experiment can be run using `finetune.py` script with appropriate parameters for the respective experiment. By default, it uses data parallelism. Refer to [data](experiments/data/) folder on how to prepare the data for training and evaluation.
+
+```
+python finetune.py -h
+```
+
+In order to evaluate the model on the test set, run the `evaluate.py` script with appropriate arguments.
+
+```
+python evaluate.py -h
+```
+
+Once the evaluation is done, metrics can be reported using `report_metrics.sh` script. Note that this script requires OpenAI API Key as it uses ChatGPT for evaluation. In addition, the challenge uses the [language-evaluation] repo for other metrics, so it needs to be downloaded and installed as well.
+
+```
+pip install git+https://github.com/bckim92/language-evaluation.git
+python -c "import language_evaluation; language_evaluation.download('coco')"
+```
+
+Then the metrics script can be run as below. It will output both the challenge evaluation results, and our metrics results.
+```
+OPENAI_API_KEY=<key> ./report_metrics.sh <path to predictions file>
+```
