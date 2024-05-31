@@ -350,7 +350,7 @@ def apply_perception_trick(predictions):
             pred["answer"] = f"{answer_prefix}{id_prefix} {ref_objects_txt}."    
     return predictions
 
-def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template=TAGGED_CHAT_TEMPLATE, 
+def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_template="tagged", 
                apply_context=None, verbalize_refs=True, apply_redcircle=True, apply_redcircle_only_to_question=False):
     def _eval_on_dataset(dataset):
         predictions = []
@@ -359,7 +359,7 @@ def eval_model(model, test_set, processor, batch_size=4, verbose=False, chat_tem
             eval_batch = [prepare_prompt(sample, verbose=verbose, verbalize_refs=verbalize_refs, apply_redcircle=apply_redcircle, apply_redcircle_only_to_question=apply_redcircle_only_to_question) for sample in idefics_batch]
             batch_messages = [sample["user_message"] for sample in idefics_batch]
             batch_images = [b[1] for b in eval_batch]
-            batch_texts = processor.apply_chat_template(batch_messages, add_generation_prompt=True, chat_template=chat_template)
+            batch_texts = processor.apply_chat_template(batch_messages, add_generation_prompt=True, chat_template=TAGGED_CHAT_TEMPLATE if chat_template == "tagged" else processor.chat_template)
             inputs = processor(text=batch_texts, images=batch_images, return_tensors="pt", padding=True)
             inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         

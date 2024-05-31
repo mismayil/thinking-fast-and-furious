@@ -21,3 +21,4 @@ bitsandbytes
 wandb
 datasets
 transformers
+evaluate

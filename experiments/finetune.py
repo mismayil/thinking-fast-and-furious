@@ -51,7 +51,7 @@ if __name__ == "__main__":
     os.environ["WANDB_PROJECT"] = args.wandb_project
 
     train_data_path = pathlib.Path(args.train_data_path)
-    idefics_train_data_path = pathlib.Path(args.train_data_path).parent / f"{train_data_path.stem}_idefics.json"
+    idefics_train_data_path = train_data_path.parent / f"{train_data_path.stem}_idefics.json"
     
     processor = load_processor(args.model_path)
     model = load_model(args.model_path, eval_mode=False, use_lora=args.use_lora, use_qlora=args.use_qlora, device=args.device, cache_dir=args.cache_dir)
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         train_dataset = random.sample(train_dataset, len(train_dataset))
 
     train_idefics_dataset = produce_idefics_dataset(train_dataset, output_path=idefics_train_data_path, apply_context=args.apply_context)
-    idefics_dataset = load_dataset('json', data_files=idefics_train_data_path, split=None)
+    idefics_dataset = load_dataset('json', data_files=str(idefics_train_data_path), split=None)
     idefics_dataset = idefics_dataset["train"].train_test_split(test_size=0.025)
 
     training_args = TrainingArguments(
